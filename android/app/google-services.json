@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "136982059550",
+    "project_id": "crmproject-1523c",
+    "storage_bucket": "crmproject-1523c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:136982059550:android:4d4e07a05f7d4c836a6c0f",
+        "android_client_info": {
+          "package_name": "com.example.flutter_login_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDO7LXVvKjluZ59ODN_4UFWotgEx3oT4Bk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:136982059550:android:823fd9e62c6c89ed6a6c0f",
+        "android_client_info": {
+          "package_name": "com.example.maitexa_crm_flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDO7LXVvKjluZ59ODN_4UFWotgEx3oT4Bk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:136982059550:android:212e0d09c56eac4b6a6c0f",
+        "android_client_info": {
+          "package_name": "com.example.maitexa_marketing_tracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDO7LXVvKjluZ59ODN_4UFWotgEx3oT4Bk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

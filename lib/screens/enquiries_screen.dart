@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/app_constants.dart';
@@ -606,19 +607,125 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
 
   Future<void> _launchWhatsApp(String rawPhone) async {
     final phone = _sanitizePhone(rawPhone).replaceAll('+', '');
-    // Use wa.me for universal deep link
-    final uri = Uri.parse('https://wa.me/$phone');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
-        webOnlyWindowName: '_blank',
+
+    // Try multiple WhatsApp launch methods
+    final uris = [
+      Uri.parse('https://wa.me/$phone'),
+      Uri.parse('whatsapp://send?phone=$phone'),
+      Uri.parse('whatsapp://send?phone=$phone&text='),
+    ];
+
+    bool launched = false;
+
+    for (final uri in uris) {
+      try {
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          launched = true;
+          break;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+
+    if (!launched) {
+      if (!mounted) return;
+
+      // Show dialog with options
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('WhatsApp Not Available'),
+          content: const Text(
+            'WhatsApp is not installed or cannot be opened. Would you like to:\n\n'
+            '• Install WhatsApp from Play Store\n'
+            '• Send SMS instead\n'
+            '• Copy phone number to clipboard',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _launchPlayStore();
+              },
+              child: const Text('Install WhatsApp'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _launchSMS(phone);
+              },
+              child: const Text('Send SMS'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _copyToClipboard(phone);
+              },
+              child: const Text('Copy Number'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
       );
-    } else {
+    }
+  }
+
+  Future<void> _launchPlayStore() async {
+    try {
+      final uri = Uri.parse('market://details?id=com.whatsapp');
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        // Fallback to web browser
+        final webUri = Uri.parse(
+          'https://play.google.com/store/apps/details?id=com.whatsapp',
+        );
+        await launchUrl(webUri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Cannot open WhatsApp')));
+      ).showSnackBar(const SnackBar(content: Text('Cannot open Play Store')));
+    }
+  }
+
+  Future<void> _launchSMS(String phone) async {
+    try {
+      final uri = Uri.parse('sms:$phone');
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Cannot open SMS app')));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Cannot open SMS app')));
+    }
+  }
+
+  Future<void> _copyToClipboard(String phone) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: phone));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Phone number $phone copied to clipboard')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Cannot copy to clipboard')));
     }
   }
 

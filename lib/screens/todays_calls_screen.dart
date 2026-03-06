@@ -17,6 +17,9 @@ class TodaysCallsScreen extends StatefulWidget {
 }
 
 class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -24,6 +27,12 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<CallProvider>().syncCalls();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -50,7 +59,7 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
       ),
       body: Column(
         children: [
-          _buildFilters(leadProvider),
+          _buildSearchAndFilters(leadProvider),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseService.getCallsStream(),
@@ -64,14 +73,18 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
 
                 final calls = snapshot.data!.docs.map((doc) => CallModel.fromFirestore(doc)).toList();
                 
-                // Apply filters
-                final filteredCalls = _applyFilters(calls, leadProvider.selectedFilter);
+                // Apply search and filters
+                final filteredBySearch = _searchQuery.isEmpty 
+                  ? calls 
+                  : calls.where((c) => c.phoneNumber.contains(_searchQuery) || c.label.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+                
+                final filteredByStatus = _applyFilters(filteredBySearch, leadProvider.selectedFilter);
 
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: filteredCalls.length,
+                  itemCount: filteredByStatus.length,
                   itemBuilder: (context, index) {
-                    final call = filteredCalls[index];
+                    final call = filteredByStatus[index];
                     return _buildCallItem(context, call, leadProvider);
                   },
                 );
@@ -83,24 +96,51 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
     );
   }
 
+  Widget _buildSearchAndFilters(LeadProvider leadProvider) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: TextField(
+            controller: _searchController,
+            onChanged: (value) => setState(() => _searchQuery = value),
+            decoration: InputDecoration(
+              hintText: "Search phone or label...",
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchQuery.isNotEmpty 
+                ? IconButton(icon: const Icon(Icons.clear), onPressed: () {
+                    _searchController.clear();
+                    setState(() => _searchQuery = '');
+                  }) 
+                : null,
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            ),
+          ),
+        ),
+        _buildFilters(leadProvider),
+      ],
+    );
+  }
+
   Widget _buildFilters(LeadProvider leadProvider) {
     final filters = ['All Calls', 'Missed Calls', 'New Leads', 'Follow Ups', 'Converted'];
     return SizedBox(
-      height: 60,
+      height: 50,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: filters.length,
         itemBuilder: (context, index) {
           final filter = filters[index];
           final isSelected = leadProvider.selectedFilter == filter;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
+            child: ChoiceChip(
               label: Text(filter),
               selected: isSelected,
               onSelected: (_) => leadProvider.setFilter(filter),
-              backgroundColor: AppColors.surface,
               selectedColor: AppColors.primary.withOpacity(0.2),
               labelStyle: TextStyle(
                 color: isSelected ? AppColors.primary : AppColors.textSecondary,

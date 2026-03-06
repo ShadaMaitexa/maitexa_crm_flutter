@@ -65,13 +65,26 @@ class _LeadProfileScreenState extends State<LeadProfileScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-             CircleAvatar(
-              radius: 40,
-              backgroundColor: AppColors.primary.withOpacity(0.1),
-              child: Text(
-                lead.name[0].toUpperCase(),
-                style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.primary),
-              ),
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 40,
+                  backgroundColor: AppColors.primary.withOpacity(0.1),
+                  child: Text(
+                    lead.name.isNotEmpty ? lead.name[0].toUpperCase() : '?',
+                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.primary),
+                  ),
+                ),
+                Positioned(
+                  right: -4,
+                  bottom: -4,
+                  child: IconButton(
+                    onPressed: () => _showEditLeadDialog(context, lead, provider),
+                    icon: const Icon(Icons.edit, size: 20),
+                    style: IconButton.styleFrom(backgroundColor: AppColors.surface, elevation: 4),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             Text(
@@ -103,6 +116,45 @@ class _LeadProfileScreenState extends State<LeadProfileScreen> {
             _buildLeadMetaInfo(lead),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showEditLeadDialog(BuildContext context, LeadModel lead, LeadProvider provider) {
+    final nameController = TextEditingController(text: lead.name);
+    final sourceController = TextEditingController(text: lead.source);
+    final labelController = TextEditingController(text: lead.label);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Edit Lead Profile"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: nameController, decoration: const InputDecoration(labelText: "Full Name")),
+              const SizedBox(height: 12),
+              TextField(controller: sourceController, decoration: const InputDecoration(labelText: "Source")),
+              const SizedBox(height: 12),
+              TextField(controller: labelController, decoration: const InputDecoration(labelText: "Label / Course")),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () async {
+              await provider.updateLeadDetails(lead.id, {
+                'name': nameController.text.trim(),
+                'source': sourceController.text.trim(),
+                'label': labelController.text.trim(),
+              });
+              if (context.mounted) Navigator.pop(context);
+            },
+            child: const Text("Update"),
+          ),
+        ],
       ),
     );
   }

@@ -17,6 +17,11 @@ class LeadProvider with ChangeNotifier {
     await FirebaseService.addActivity(leadId, 'Status Update', 'Status changed to $status');
   }
 
+  Future<void> updateLeadDetails(String leadId, Map<String, dynamic> data) async {
+    await FirebaseService.updateLead(leadId, data);
+    await FirebaseService.addActivity(leadId, 'Profile Updated', 'Lead details was updated');
+  }
+
   Future<void> addNote(String leadId, String note) async {
     await FirebaseService.addNote(leadId, note);
   }

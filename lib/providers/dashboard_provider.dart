@@ -34,55 +34,38 @@ class DashboardProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // If no current user is set, try to load general data
+      // 1. Get base dashboard stats
       if (_currentUserId == null || _currentUserId == 'admin_001') {
-        // Load general stats for admin or when no user is set
-        await _loadGeneralData();
+        _stats = await FirebaseService.getDashboardStats();
       } else {
-        // Load user-specific data
-        await _loadUserSpecificData();
+        _stats = await FirebaseService.getUserDashboardStats(_currentUserId!);
       }
+
+      // 2. Get Sales Analytics and merge/override
+      final salesStats = await FirebaseService.getSalesAnalytics();
+      _stats.addAll({
+        'todayCalls': salesStats['todayLeadsCount'], // New leads often started with a call
+        'missedCalls': salesStats['missedCallsCount'],
+        'convertedLeads': salesStats['convertedLeadsCount'],
+        'pendingFollowUps': salesStats['pendingFollowUpsCount'],
+      });
+
+      // 3. Load recent data
+      _recentEnquiries = await FirebaseService.getEnquiries();
+      _recentVisits = await FirebaseService.getCollegeVisits();
+      _recentFollowUps = await FirebaseService.getFollowUps();
+
+      _isLoading = false;
+      notifyListeners();
     } catch (e) {
       _error = e.toString();
       _isLoading = false;
       notifyListeners();
-    }
-  }
-
-  // Method to update current user and reload data
-  Future<void> updateCurrentUser(String? userId) async {
-    if (userId != null && userId != _currentUserId) {
-      setCurrentUser(userId);
-      await loadDashboardData();
-    } else if (userId == null && _currentUserId != null) {
-      // Clear user and load general data
-      _currentUserId = null;
-      await _loadGeneralData();
     }
   }
 
   Future<void> _loadGeneralData() async {
-    try {
-      // Load dashboard statistics
-      _stats = await FirebaseService.getDashboardStats();
-
-      // Load recent data
-      final enquiries = await FirebaseService.getEnquiries();
-      _recentEnquiries = enquiries.take(5).toList();
-
-      final visits = await FirebaseService.getCollegeVisits();
-      _recentVisits = visits.take(5).toList();
-
-      final followUps = await FirebaseService.getFollowUps();
-      _recentFollowUps = followUps.take(5).toList();
-
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      _error = e.toString();
-      _isLoading = false;
-      notifyListeners();
-    }
+    await loadDashboardData();
   }
 
   Future<void> _loadUserSpecificData() async {

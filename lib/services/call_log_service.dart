@@ -6,6 +6,22 @@ import 'firebase_service.dart';
 class CallLogService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  static Future<bool> requestPermissions() async {
+    var status = await Permission.phone.status;
+    if (!status.isGranted) {
+      status = await Permission.phone.request();
+    }
+    var logStatus = await Permission.contacts.status;
+    if (!logStatus.isGranted) {
+      logStatus = await Permission.contacts.request();
+    }
+    return status.isGranted || logStatus.isGranted;
+  }
+
+  static Future<Iterable<CallLogEntry>> getLocalCallLogs() async {
+    return await CallLog.get();
+  }
+
   Future<void> syncCallLogs() async {
     // 1. Request Permission
     var status = await Permission.phone.status;
@@ -41,7 +57,7 @@ class CallLogService {
     // We can use a unique ID based on number and timestamp
     String callDocId = '${phoneNumber}_${entry.timestamp}';
     
-    var doc = await _firestore.collection('calls').doc(callDocId).get();
+    var doc = await _firestore.collection(FirebaseService.callsCollection).doc(callDocId).get();
     if (doc.exists) return; // Skip if already synced
 
     // Determine call type
@@ -51,7 +67,7 @@ class CallLogService {
     String? leadId = await _findOrCreateLead(phoneNumber);
 
     // 2. Record Call
-    await _firestore.collection('calls').doc(callDocId).set({
+    await _firestore.collection(FirebaseService.callsCollection).doc(callDocId).set({
       'phone_number': phoneNumber,
       'call_type': callType,
       'timestamp': DateTime.fromMillisecondsSinceEpoch(entry.timestamp ?? 0),
@@ -62,14 +78,14 @@ class CallLogService {
     
     // 3. Record Activity if lead exists
     if (leadId != null) {
-      await recordActivity(leadId, callType, 'Call recorded from logs');
+      await FirebaseService.addActivity(leadId, callType, 'Call recorded from logs');
     }
   }
 
   Future<String?> _findOrCreateLead(String phoneNumber) async {
     try {
       var snapshot = await _firestore
-          .collection('leads')
+          .collection(FirebaseService.leadsCollection)
           .where('phone', isEqualTo: phoneNumber)
           .limit(1)
           .get();
@@ -78,7 +94,7 @@ class CallLogService {
         return snapshot.docs.first.id;
       } else {
         // Create new lead
-        var docRef = await _firestore.collection('leads').add({
+        var docRef = await _firestore.collection(FirebaseService.leadsCollection).add({
           'name': 'Unknown',
           'phone': phoneNumber,
           'source': 'Incoming Call',
@@ -95,14 +111,6 @@ class CallLogService {
     }
   }
 
-  Future<void> recordActivity(String leadId, String type, String desc) async {
-     await _firestore.collection('lead_activities').add({
-        'lead_id': leadId,
-        'activity_type': type,
-        'description': desc,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-  }
 
   String _getCallTypeString(CallType? type) {
     switch (type) {

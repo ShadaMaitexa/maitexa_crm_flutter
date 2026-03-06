@@ -873,10 +873,10 @@ class _DashboardContentState extends State<DashboardContent>
 
   Widget _buildMetricsGrid(DashboardProvider dashboardProvider) {
     final stats = dashboardProvider.stats;
-    final todayCalls = stats['todayEnquiries'] ?? 0;
-    final todayVisits = stats['todayVisits'] ?? 0;
-    final todayFollowUps = stats['todayFollowUps'] ?? 0;
-    final conversions = stats['conversions'] ?? 0;
+    final todayCalls = stats['todayCalls'] ?? 0;
+    final missedCalls = stats['missedCalls'] ?? 0;
+    final convertedLeads = stats['convertedLeads'] ?? 0;
+    final pendingFollowUps = stats['pendingFollowUps'] ?? 0;
 
     return GridView.count(
       shrinkWrap: true,
@@ -890,25 +890,25 @@ class _DashboardContentState extends State<DashboardContent>
           icon: Icons.phone,
           iconColor: AppColors.info,
           value: '$todayCalls',
-          label: "Today's Calls",
+          label: "Today's Leads",
         ),
         _buildMetricCard(
-          icon: Icons.location_on,
+          icon: Icons.call_missed,
+          iconColor: AppColors.error,
+          value: '$missedCalls',
+          label: 'Missed Calls',
+        ),
+        _buildMetricCard(
+          icon: Icons.trending_up,
           iconColor: AppColors.success,
-          value: '$todayVisits',
-          label: 'College Visits',
+          value: '$convertedLeads',
+          label: 'Converted',
         ),
         _buildMetricCard(
           icon: Icons.calendar_today,
           iconColor: AppColors.warning,
-          value: '$todayFollowUps',
-          label: 'Follow-ups Due',
-        ),
-        _buildMetricCard(
-          icon: Icons.trending_up,
-          iconColor: AppColors.statusFollowUp,
-          value: '$conversions',
-          label: 'Conversions',
+          value: '$pendingFollowUps',
+          label: 'Pending Follow-ups',
         ),
       ],
     );

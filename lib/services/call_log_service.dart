@@ -1,56 +1,121 @@
 import 'package:call_log/call_log.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'firebase_service.dart';
 
 class CallLogService {
-  static Future<bool> requestPermissions() async {
-    final status = await [
-      Permission.phone,
-      Permission.contacts,
-      Permission.callLog,
-    ].request();
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  Future<void> syncCallLogs() async {
+    // 1. Request Permission
+    var status = await Permission.phone.status;
+    if (!status.isGranted) {
+      status = await Permission.phone.request();
+    }
     
-    // In Android, READ_CALL_LOG is often tied to phone permission or separate
-    final callLogStatus = await Permission.callLog.status;
-    return callLogStatus.isGranted;
+    var logStatus = await Permission.contacts.status;
+    if (!logStatus.isGranted) {
+      logStatus = await Permission.contacts.request();
+    }
+
+    if (await Permission.phone.isGranted) {
+      // 2. Fetch Call Logs (Last 24 hours for efficiency or use a last sync timestamp)
+      // For now, let's just fetch all and rely on deduplication or limit to recent.
+      Iterable<CallLogEntry> entries = await CallLog.get();
+
+      for (var entry in entries) {
+        await _processCallLogEntry(entry);
+      }
+    }
   }
 
-  static Future<Iterable<CallLogEntry>> getLocalCallLogs() async {
-    return await CallLog.get();
-  }
+  Future<void> _processCallLogEntry(CallLogEntry entry) async {
+    if (entry.number == null) return;
 
-  static Future<void> syncCallToFirebase(CallLogEntry entry, String category) async {
-    await FirebaseService.recordCall({
-      'number': entry.number,
-      'name': entry.name,
-      'duration': entry.duration,
-      'timestamp': entry.timestamp,
-      'type': entry.callType.toString(),
-      'category': category,
+    String phoneNumber = entry.number!;
+    // Clean phone number (remove spaces, etc. if needed)
+    // For simplicity, we keep it as is or do basic cleaning
+    phoneNumber = phoneNumber.replaceAll(RegExp(r'\s+'), '');
+
+    // Check for duplicate call entry in Firestore
+    // We can use a unique ID based on number and timestamp
+    String callDocId = '${phoneNumber}_${entry.timestamp}';
+    
+    var doc = await _firestore.collection('calls').doc(callDocId).get();
+    if (doc.exists) return; // Skip if already synced
+
+    // Determine call type
+    String callType = _getCallTypeString(entry.callType);
+
+    // 1. Check if lead exists
+    String? leadId = await _findOrCreateLead(phoneNumber);
+
+    // 2. Record Call
+    await _firestore.collection('calls').doc(callDocId).set({
+      'phone_number': phoneNumber,
+      'call_type': callType,
+      'timestamp': DateTime.fromMillisecondsSinceEpoch(entry.timestamp ?? 0),
+      'duration': entry.duration ?? 0,
+      'label': 'Unknown', // Default label
+      'lead_id': leadId,
     });
+    
+    // 3. Record Activity if lead exists
+    if (leadId != null) {
+      await recordActivity(leadId, callType, 'Call recorded from logs');
+    }
   }
 
-  static String getCallTypeString(CallType? type) {
-    if (type == null) return 'Unknown';
+  Future<String?> _findOrCreateLead(String phoneNumber) async {
+    try {
+      var snapshot = await _firestore
+          .collection('leads')
+          .where('phone', isEqualTo: phoneNumber)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isNotEmpty) {
+        return snapshot.docs.first.id;
+      } else {
+        // Create new lead
+        var docRef = await _firestore.collection('leads').add({
+          'name': 'Unknown',
+          'phone': phoneNumber,
+          'source': 'Incoming Call',
+          'label': 'Unknown',
+          'status': 'New Inquiry',
+          'created_at': FieldValue.serverTimestamp(),
+          'last_contacted': FieldValue.serverTimestamp(),
+        });
+        return docRef.id;
+      }
+    } catch (e) {
+      print('Error finding/creating lead: $e');
+      return null;
+    }
+  }
+
+  Future<void> recordActivity(String leadId, String type, String desc) async {
+     await _firestore.collection('lead_activities').add({
+        'lead_id': leadId,
+        'activity_type': type,
+        'description': desc,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+  }
+
+  String _getCallTypeString(CallType? type) {
     switch (type) {
       case CallType.incoming:
-        return 'Incoming';
+        return 'incoming';
       case CallType.outgoing:
-        return 'Outgoing';
+        return 'outgoing';
       case CallType.missed:
-        return 'Missed';
-      case CallType.voiceMail:
-        return 'Voicemail';
+        return 'missed';
       case CallType.rejected:
-        return 'Rejected';
-      case CallType.blocked:
-        return 'Blocked';
-      case CallType.answerExternally:
-        return 'Answered Externally';
-      case CallType.unknown:
-        return 'Unknown';
+        return 'missed';
       default:
-        return 'Unknown';
+        return 'missed';
     }
   }
 }

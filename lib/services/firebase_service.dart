@@ -15,6 +15,10 @@ class FirebaseService {
   static const String analyticsCollection = 'analytics';
   static const String callsCollection = 'calls';
   static const String numberCategoriesCollection = 'number_categories';
+  static const String leadsCollection = 'leads';
+  static const String labelsCollection = 'labels';
+  static const String leadNotesCollection = 'lead_notes';
+  static const String leadActivitiesCollection = 'lead_activities';
 
 
   // Hardcoded admin credentials
@@ -850,8 +854,28 @@ class FirebaseService {
           await addRole(roleData);
         }
       }
+      
+      // Also initialize labels
+      await initializeDefaultLabels();
     } catch (e) {
       print('Initialize default roles error: $e');
+    }
+  }
+
+  static Future<void> initializeDefaultLabels() async {
+    try {
+      final snapshot = await _firestore.collection(labelsCollection).limit(1).get();
+      if (snapshot.docs.isEmpty) {
+        final defaultLabels = [
+          'Devagiri College', 'St Joseph College', 'Providence College', 
+          'Unknown', 'Hot Lead', 'Follow Up'
+        ];
+        for (var label in defaultLabels) {
+          await addLabel(label);
+        }
+      }
+    } catch (e) {
+      print('Initialize default labels error: $e');
     }
   }
   // Call Tracking & Categorization
@@ -888,5 +912,121 @@ class FirebaseService {
       print('Get number category error: $e');
       return null;
     }
+  }
+
+  // Lead Management
+  static Stream<QuerySnapshot> getLeadsStream() {
+    return _firestore
+        .collection(leadsCollection)
+        .orderBy('created_at', descending: true)
+        .snapshots();
+  }
+
+  static Future<void> updateLead(String id, Map<String, dynamic> data) async {
+    await _firestore.collection(leadsCollection).doc(id).update({
+      ...data,
+      'last_contacted': FieldValue.serverTimestamp(),
+    });
+  }
+
+  static Future<Map<String, dynamic>?> getLeadById(String id) async {
+    final doc = await _firestore.collection(leadsCollection).doc(id).get();
+    if (doc.exists) {
+      return {'id': doc.id, ...doc.data()!};
+    }
+    return null;
+  }
+
+  // Label Management
+  static Stream<QuerySnapshot> getLabelsStream() {
+    return _firestore.collection(labelsCollection).snapshots();
+  }
+
+  static Future<void> addLabel(String name) async {
+    await _firestore.collection(labelsCollection).add({'label_name': name});
+  }
+
+  // Note Management
+  static Stream<QuerySnapshot> getNotesStream(String leadId) {
+    return _firestore
+        .collection(leadNotesCollection)
+        .where('lead_id', isEqualTo: leadId)
+        .orderBy('created_at', descending: true)
+        .snapshots();
+  }
+
+  static Future<void> addNote(String leadId, String note) async {
+    await _firestore.collection(leadNotesCollection).add({
+      'lead_id': leadId,
+      'note': note,
+      'created_at': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // Activity Management
+  static Stream<QuerySnapshot> getActivitiesStream(String leadId) {
+    return _firestore
+        .collection(leadActivitiesCollection)
+        .where('lead_id', isEqualTo: leadId)
+        .orderBy('timestamp', descending: true)
+        .snapshots();
+  }
+
+  static Future<void> addActivity(String leadId, String type, String desc) async {
+    await _firestore.collection(leadActivitiesCollection).add({
+      'lead_id': leadId,
+      'activity_type': type,
+      'description': desc,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // Call Management
+  static Stream<QuerySnapshot> getCallsStream() {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    return _firestore
+        .collection(callsCollection)
+        .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
+        .orderBy('timestamp', descending: true)
+        .snapshots();
+  }
+
+  static Future<void> updateCallLabel(String callId, String label) async {
+    await _firestore.collection(callsCollection).doc(callId).update({'label': label});
+  }
+
+  // Sales Analytics
+  static Future<Map<String, dynamic>> getSalesAnalytics() async {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    
+    final QuerySnapshot todayLeads = await _firestore
+        .collection(leadsCollection)
+        .where('created_at', isGreaterThanOrEqualTo: startOfDay)
+        .get();
+
+    final QuerySnapshot missedCalls = await _firestore
+        .collection(callsCollection)
+        .where('call_type', isEqualTo: 'missed')
+        .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
+        .get();
+
+    final QuerySnapshot convertedLeads = await _firestore
+        .collection(leadsCollection)
+        .where('status', isEqualTo: 'Converted')
+        .get();
+
+    final QuerySnapshot followUps = await _firestore
+        .collection(leadsCollection)
+        .where('status', isEqualTo: 'Contacted')
+        .get();
+
+    return {
+      'todayLeadsCount': todayLeads.docs.length,
+      'missedCallsCount': missedCalls.docs.length,
+      'convertedLeadsCount': convertedLeads.docs.length,
+      'pendingFollowUpsCount': followUps.docs.length,
+    };
   }
 }

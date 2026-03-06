@@ -16,7 +16,8 @@ import 'add_college_visit_screen.dart';
 import 'add_follow_up_screen.dart';
 import 'add_enquiry_screen.dart';
 import 'enquiries_screen.dart';
-import 'call_logs_screen.dart';
+import 'todays_calls_screen.dart';
+import 'sales_analytics_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -119,10 +120,10 @@ class _DashboardScreenState extends State<DashboardScreen>
     // For other users, show the regular dashboard with bottom navigation
     final List<Widget> screens = [
       const DashboardContent(),
-      const EnquiriesScreen(),
+      const TodaysCallsScreen(),
       const CollegeVisitScreen(),
       const FollowUpScreen(),
-      const AnalyticsScreen(),
+      const SalesAnalyticsScreen(),
       const ProfileScreen(),
     ];
 
@@ -173,7 +174,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
               _buildAnimatedNavItem(
                 icon: Icons.phone,
-                label: AppStrings.enquiries,
+                label: "Calls",
                 index: 1,
               ),
               _buildAnimatedNavItem(
@@ -385,7 +386,7 @@ class _DashboardContentState extends State<DashboardContent>
 
   Future<void> _navigateToCallLogs() async {
     await Navigator.of(context).push(
-      CustomPageTransition(child: const CallLogsScreen()),
+      CustomPageTransition(child: const TodaysCallsScreen()),
     );
   }
 

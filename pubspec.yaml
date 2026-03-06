@@ -83,6 +83,10 @@ dependencies:
   # Connectivity
   connectivity_plus: ^5.0.2
   
+  # Call tracking
+  call_log: ^4.0.1
+  phone_state: ^0.1.2
+  
   # Form Validation
   form_validator: ^2.1.1
   

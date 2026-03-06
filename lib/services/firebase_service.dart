@@ -13,6 +13,9 @@ class FirebaseService {
   static const String followUpsCollection = 'follow_ups';
   static const String tasksCollection = 'tasks';
   static const String analyticsCollection = 'analytics';
+  static const String callsCollection = 'calls';
+  static const String numberCategoriesCollection = 'number_categories';
+
 
   // Hardcoded admin credentials
   static const String adminEmail = 'admin@maitexa.com';
@@ -849,6 +852,41 @@ class FirebaseService {
       }
     } catch (e) {
       print('Initialize default roles error: $e');
+    }
+  }
+  // Call Tracking & Categorization
+  static Future<void> recordCall(Map<String, dynamic> callData) async {
+    try {
+      await _firestore.collection(callsCollection).add({
+        ...callData,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Record call error: $e');
+    }
+  }
+
+  static Future<void> setNumberCategory(String number, String category) async {
+    try {
+      await _firestore.collection(numberCategoriesCollection).doc(number).set({
+        'category': category,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Set number category error: $e');
+    }
+  }
+
+  static Future<String?> getNumberCategory(String number) async {
+    try {
+      final doc = await _firestore.collection(numberCategoriesCollection).doc(number).get();
+      if (doc.exists) {
+        return doc.data()?['category'] as String?;
+      }
+      return null;
+    } catch (e) {
+      print('Get number category error: $e');
+      return null;
     }
   }
 }

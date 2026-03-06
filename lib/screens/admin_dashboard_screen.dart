@@ -10,6 +10,7 @@ import '../providers/auth_provider.dart';
 import '../screens/splash_screen.dart';
 import '../screens/role_management_screen.dart';
 import '../utils/validation_utils.dart';
+import 'call_logs_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -540,9 +541,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final List<Widget> screens = [
       _buildUserManagementScreen(isTablet),
       const RoleManagementScreen(),
+      const CallLogsScreen(),
     ];
 
-    final List<String> titles = ['User Management', 'Role Management'];
+    final List<String> titles = ['User Management', 'Role Management', 'Call Tracking'];
 
     return Scaffold(
       appBar: AppBar(
@@ -575,6 +577,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Users'),
           BottomNavigationBarItem(icon: Icon(Icons.work), label: 'Roles'),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Calls'),
         ],
       ),
     );

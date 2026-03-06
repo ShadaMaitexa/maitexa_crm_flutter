@@ -16,6 +16,7 @@ import 'add_college_visit_screen.dart';
 import 'add_follow_up_screen.dart';
 import 'add_enquiry_screen.dart';
 import 'enquiries_screen.dart';
+import 'call_logs_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -382,6 +383,12 @@ class _DashboardContentState extends State<DashboardContent>
     }
   }
 
+  Future<void> _navigateToCallLogs() async {
+    await Navigator.of(context).push(
+      CustomPageTransition(child: const CallLogsScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
@@ -435,6 +442,18 @@ class _DashboardContentState extends State<DashboardContent>
                               ),
                             ),
                           ],
+                        ),
+                        IconButton(
+                          onPressed: _navigateToCallLogs,
+                          icon: Icon(
+                            Icons.history,
+                            size: ResponsiveHelper.getResponsiveIconSize(
+                              context,
+                              AppSizes.iconL,
+                            ),
+                            color: AppColors.primary,
+                          ),
+                          tooltip: 'Call Logs',
                         ),
                         AnimatedBuilder(
                           animation: _floatingAnimation,
@@ -592,6 +611,19 @@ class _DashboardContentState extends State<DashboardContent>
                                 },
                                 delay: 100,
                               ),
+                              SizedBox(
+                                height: ResponsiveHelper.getResponsiveSpacing(
+                                  context,
+                                  AppSizes.paddingM,
+                                ),
+                              ),
+                              _buildAnimatedButton(
+                                text: 'Call Tracker',
+                                icon: Icons.history,
+                                isOutlined: true,
+                                onPressed: _navigateToCallLogs,
+                                delay: 200,
+                              ),
                             ],
                           ),
                           tablet: Row(
@@ -621,6 +653,21 @@ class _DashboardContentState extends State<DashboardContent>
                                     _navigateToAddCollegeVisit();
                                   },
                                   delay: 100,
+                                ),
+                              ),
+                              SizedBox(
+                                width: ResponsiveHelper.getResponsiveSpacing(
+                                  context,
+                                  AppSizes.paddingM,
+                                ),
+                              ),
+                              Expanded(
+                                child: _buildAnimatedButton(
+                                  text: 'Call Tracker',
+                                  icon: Icons.history,
+                                  isOutlined: true,
+                                  onPressed: _navigateToCallLogs,
+                                  delay: 200,
                                 ),
                               ),
                             ],

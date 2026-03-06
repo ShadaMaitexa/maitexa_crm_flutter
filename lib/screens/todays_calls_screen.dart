@@ -8,6 +8,7 @@ import '../providers/lead_provider.dart';
 import '../services/firebase_service.dart';
 import '../models/call_model.dart';
 import 'lead_profile_screen.dart';
+import 'add_follow_up_screen.dart';
 
 class TodaysCallsScreen extends StatefulWidget {
   const TodaysCallsScreen({super.key});
@@ -265,8 +266,7 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
                   ),
                 ],
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -356,17 +356,19 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
                         
                         if (context.mounted) Navigator.pop(context);
 
-                        if (label == 'Follow Up') {
-                          // Redirect to schedule
+                        if (label == 'Follow Up' && call.leadId != null) {
+                          // Redirect to detail page
                           if (context.mounted) {
                              Navigator.push(
                                context,
                                MaterialPageRoute(
-                                 builder: (context) => AddFollowUpScreen(
-                                   phoneNumber: call.phoneNumber,
-                                   contactName: call.leadId != null ? null : 'Unknown',
+                                 builder: (context) => LeadProfileScreen(
+                                   leadId: call.leadId!,
                                  ),
                                ),
+                             );
+                             ScaffoldMessenger.of(context).showSnackBar(
+                               const SnackBar(content: Text("Lead set to Follow Up. Use 'Schedule' to add reminder.")),
                              );
                           }
                         }

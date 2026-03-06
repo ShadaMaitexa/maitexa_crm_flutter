@@ -699,13 +699,6 @@ class FirebaseService {
         .snapshots();
   }
 
-  static Stream<QuerySnapshot> getFollowUpsStream() {
-    return _firestore
-        .collection(followUpsCollection)
-        .orderBy('followUpDate', descending: true)
-        .snapshots();
-  }
-
   static Stream<QuerySnapshot> getUsersStream() {
     return _firestore
         .collection(usersCollection)

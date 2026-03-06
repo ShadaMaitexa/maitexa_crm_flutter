@@ -8,6 +8,7 @@ import '../services/firebase_service.dart';
 import '../models/lead_model.dart';
 import '../models/note_model.dart';
 import '../models/activity_model.dart';
+import 'add_follow_up_screen.dart';
 
 class LeadProfileScreen extends StatefulWidget {
   final String leadId;
@@ -107,8 +108,15 @@ class _LeadProfileScreenState extends State<LeadProfileScreen> {
                   }),
                   _buildActionIcon(Icons.edit_note, "Add Note", AppColors.primary, () => _showAddNoteDialog(context, lead.id)),
                   _buildActionIcon(Icons.calendar_month, "Schedule", Colors.orange, () {
-                    // Navigate to existing schedule follow up if needed or show message
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Follow-up scheduled!")));
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AddFollowUpScreen(
+                          phoneNumber: lead.phone,
+                          contactName: lead.name,
+                        ),
+                      ),
+                    );
                   }),
                 ],
               ),

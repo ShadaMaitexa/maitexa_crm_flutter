@@ -8,6 +8,7 @@ import '../services/firebase_service.dart';
 import '../models/lead_model.dart';
 import '../models/note_model.dart';
 import '../models/activity_model.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'add_follow_up_screen.dart';
 
 class LeadProfileScreen extends StatefulWidget {
@@ -102,7 +103,7 @@ class _LeadProfileScreenState extends State<LeadProfileScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   _buildActionIcon(Icons.call, "Call", Colors.green, () => provider.launchCall(lead.phone)),
-                  _buildActionIcon(Icons.message, "WhatsApp", Colors.blue, () {
+                  _buildActionIcon(FontAwesomeIcons.whatsapp, "WhatsApp", const Color(0xFF25D366), () {
                     provider.launchWhatsApp(lead.phone);
                     provider.recordWhatsAppActivity(lead.id);
                   }),

@@ -7,6 +7,7 @@ import '../providers/call_provider.dart';
 import '../providers/lead_provider.dart';
 import '../services/firebase_service.dart';
 import '../models/call_model.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'lead_profile_screen.dart';
 import 'add_follow_up_screen.dart';
 
@@ -248,9 +249,12 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
                         await leadProvider.recordWhatsAppActivity(call.leadId!);
                       }
                     },
-                    icon: const Icon(Icons.message, size: 18),
+                    icon: const Icon(FontAwesomeIcons.whatsapp, size: 18),
                     label: const Text("WhatsApp"),
-                    style: OutlinedButton.styleFrom(foregroundColor: Colors.blue),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF25D366),
+                      side: const BorderSide(color: Color(0xFF25D366)),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),

@@ -342,6 +342,13 @@ class FirebaseService {
     }
   }
 
+  static Stream<QuerySnapshot> getFollowUpsStream() {
+    return _firestore
+        .collection(followUpsCollection)
+        .orderBy('followUpDate', descending: true)
+        .snapshots();
+  }
+
   // Tasks
   static Future<List<Map<String, dynamic>>> getTasks() async {
     try {
@@ -1018,8 +1025,8 @@ class FirebaseService {
         .get();
 
     final QuerySnapshot followUps = await _firestore
-        .collection(leadsCollection)
-        .where('status', isEqualTo: 'Contacted')
+        .collection(followUpsCollection)
+        .where('status', isEqualTo: 'pending')
         .get();
 
     return {

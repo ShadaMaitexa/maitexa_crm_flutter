@@ -253,62 +253,160 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                IconButton(
-                  onPressed: () => _showLabelDialog(context, call),
-                  icon: const Icon(Icons.label_outline),
-                  tooltip: "Add Label",
-                ),
-              ],
-            ),
-          ],
+                  IconButton(
+                    onPressed: () => _showAddNoteDialog(context, call),
+                    icon: const Icon(Icons.note_add_outlined),
+                    tooltip: "Add Note",
+                  ),
+                  IconButton(
+                    onPressed: () => _showLabelDialog(context, call, leadProvider),
+                    icon: const Icon(Icons.label_outline),
+                    tooltip: "Add Label",
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  void _showLabelDialog(BuildContext context, CallModel call) {
+  void _showAddNoteDialog(BuildContext context, CallModel call) {
+    final noteController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Add Call Note"),
+        content: TextField(
+          controller: noteController,
+          maxLines: 3,
+          decoration: const InputDecoration(hintText: "Enter note details about this call..."),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () {
+              if (noteController.text.isNotEmpty && call.leadId != null) {
+                context.read<LeadProvider>().addNote(call.leadId!, noteController.text);
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Note added to lead profile")));
+              } else if (call.leadId == null) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error: No lead associated with this call")));
+                Navigator.pop(context);
+              }
+            },
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLabelDialog(BuildContext context, CallModel call, LeadProvider leadProvider) {
+    final TextEditingController newLabelController = TextEditingController();
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (context) {
-        return StreamBuilder<QuerySnapshot>(
-          stream: FirebaseService.getLabelsStream(),
-          builder: (context, snapshot) {
-            final List<String> defaultLabels = [
-              'Devagiri College', 'St Joseph College', 'Providence College', 
-              'Hot Lead', 'Follow Up', 'Unknown'
-            ];
-            List<String> labels = defaultLabels;
-            
-            if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-              labels = snapshot.data!.docs.map((doc) => doc.get('label_name') as String).toList();
-              // Merge with default if needed or just use these
-            }
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            left: 16, right: 16, top: 16
+          ),
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseService.getLabelsStream(),
+            builder: (context, snapshot) {
+              final List<String> defaultLabels = [
+                'Devagiri College', 'St Joseph College', 'Providence College', 
+                'Hot Lead', 'Follow Up', 'Unknown'
+              ];
+              List<String> labels = defaultLabels;
+              
+              if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+                labels = snapshot.data!.docs.map((doc) => doc.get('label_name') as String).toList();
+              }
 
-            return Container(
-              padding: const EdgeInsets.all(16),
-              child: Column(
+              return Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("Assign Label", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("Assign Label", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      IconButton(
+                        icon: const Icon(Icons.add_circle, color: AppColors.primary),
+                        onPressed: () {
+                          _showAddNewLabelDialog(context);
+                        },
+                      )
+                    ],
+                  ),
                   const SizedBox(height: 16),
                   Wrap(
                     spacing: 8,
                     children: labels.map((label) => ActionChip(
                       label: Text(label),
-                      onPressed: () {
-                        context.read<CallProvider>().updateCallLabel(call.id, label);
-                        Navigator.pop(context);
+                      onPressed: () async {
+                        await context.read<CallProvider>().updateCallLabel(call.id, label);
+                        if (call.leadId != null) {
+                          await FirebaseService.updateLead(call.leadId!, {'label': label});
+                        }
+                        
+                        if (context.mounted) Navigator.pop(context);
+
+                        if (label == 'Follow Up') {
+                          // Redirect to schedule
+                          if (context.mounted) {
+                             Navigator.push(
+                               context,
+                               MaterialPageRoute(
+                                 builder: (context) => AddFollowUpScreen(
+                                   phoneNumber: call.phoneNumber,
+                                   contactName: call.leadId != null ? null : 'Unknown',
+                                 ),
+                               ),
+                             );
+                          }
+                        }
                       },
                     )).toList(),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                 ],
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
+    );
+  }
+
+  void _showAddNewLabelDialog(BuildContext context) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Add New Label"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: "Enter label name..."),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                context.read<LeadProvider>().addLabel(controller.text.trim());
+                Navigator.pop(context);
+              }
+            },
+            child: const Text("Add"),
+          ),
+        ],
+      ),
     );
   }
 

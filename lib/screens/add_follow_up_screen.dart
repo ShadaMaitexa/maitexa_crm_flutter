@@ -10,7 +10,9 @@ import '../providers/auth_provider.dart';
 import '../utils/validation_utils.dart';
 
 class AddFollowUpScreen extends StatefulWidget {
-  const AddFollowUpScreen({super.key});
+  final String? phoneNumber;
+  final String? contactName;
+  const AddFollowUpScreen({super.key, this.phoneNumber, this.contactName});
 
   @override
   State<AddFollowUpScreen> createState() => _AddFollowUpScreenState();
@@ -18,10 +20,17 @@ class AddFollowUpScreen extends StatefulWidget {
 
 class _AddFollowUpScreenState extends State<AddFollowUpScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _contactNameController = TextEditingController();
-  final _contactPhoneController = TextEditingController();
+  late final TextEditingController _contactNameController;
+  late final TextEditingController _contactPhoneController;
   final _notesController = TextEditingController();
   final _outcomeController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _contactNameController = TextEditingController(text: widget.contactName ?? '');
+    _contactPhoneController = TextEditingController(text: widget.phoneNumber ?? '');
+  }
 
   DateTime? _followUpDate;
   String _status = 'pending';

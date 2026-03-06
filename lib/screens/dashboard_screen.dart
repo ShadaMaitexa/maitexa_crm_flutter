@@ -590,8 +590,8 @@ class _DashboardContentState extends State<DashboardContent>
                           mobile: Column(
                             children: [
                               _buildAnimatedButton(
-                                text: AppStrings.logCall,
-                                icon: Icons.phone,
+                                text: "Add Lead",
+                                icon: Icons.person_add_outlined,
                                 onPressed: () {
                                   _navigateToAddEnquiry();
                                 },
@@ -631,8 +631,8 @@ class _DashboardContentState extends State<DashboardContent>
                             children: [
                               Expanded(
                                 child: _buildAnimatedButton(
-                                  text: AppStrings.logCall,
-                                  icon: Icons.phone,
+                                  text: "Add Lead",
+                                  icon: Icons.person_add_outlined,
                                   onPressed: () {
                                     _navigateToAddEnquiry();
                                   },
@@ -674,16 +674,13 @@ class _DashboardContentState extends State<DashboardContent>
                             ],
                           ),
                         ),
+                        const SizedBox(height: AppSizes.paddingL),
+                        _buildSalesDialerSections(dashboardProvider),
                       ],
                     ),
                   ),
                 ),
-                SizedBox(
-                  height: ResponsiveHelper.getResponsiveSpacing(
-                    context,
-                    AppSizes.paddingXL,
-                  ),
-                ),
+                const SizedBox(height: AppSizes.paddingXL),
 
                 // Recent Activities - Animated
                 FadeTransition(
@@ -867,6 +864,104 @@ class _DashboardContentState extends State<DashboardContent>
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSalesDialerSections(DashboardProvider dashboardProvider) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Quick CRM Actions",
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: AppSizes.paddingL),
+        Row(
+          children: [
+            Expanded(
+              child: _buildQuickActionCard(
+                title: "View Notes",
+                subtitle: "Recent call notes",
+                icon: Icons.note_outlined,
+                color: Colors.purple,
+                onTap: () {
+                   _showRecentNotesDialog(context);
+                },
+              ),
+            ),
+            const SizedBox(width: AppSizes.paddingM),
+            Expanded(
+              child: _buildQuickActionCard(
+                title: "Schedule",
+                subtitle: "Add Follow-up",
+                icon: Icons.calendar_today_outlined,
+                color: Colors.orange,
+                onTap: () {
+                  _navigateToAddFollowUp();
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _showRecentNotesDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Global Call Notes", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              const Expanded(
+                child: Center(child: Text("Notes feature is active in Lead Profiles and Call Tracker.")),
+              ),
+              const SizedBox(height: 16),
+              CustomButton(text: "Close", onPressed: () => Navigator.pop(context)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildQuickActionCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 28),
+            const SizedBox(height: 12),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(subtitle, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          ],
+        ),
       ),
     );
   }

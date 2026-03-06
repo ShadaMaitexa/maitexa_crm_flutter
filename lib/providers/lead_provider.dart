@@ -44,4 +44,9 @@ class LeadProvider with ChangeNotifier {
       await launchUrl(Uri.parse(url));
     }
   }
+
+  Future<void> addLabel(String label) async {
+    await FirebaseService.addLabel(label);
+    notifyListeners();
+  }
 }

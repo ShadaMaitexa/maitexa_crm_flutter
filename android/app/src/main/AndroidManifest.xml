@@ -58,7 +58,17 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="whatsapp" />
         </intent>
+        <!-- WhatsApp Business scheme -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="whatsapp.biz" />
+        </intent>
+        <!-- WhatsApp Business package query (for canLaunch checks) -->
+        <package android:name="com.whatsapp.w4b" />
+        <!-- WhatsApp package query -->
+        <package android:name="com.whatsapp" />
         <!-- Phone and SMS queries -->
+
         <intent>
             <action android:name="android.intent.action.DIAL" />
             <data android:scheme="tel" />

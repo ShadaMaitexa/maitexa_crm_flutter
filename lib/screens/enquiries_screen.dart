@@ -6,10 +6,12 @@ import '../constants/app_constants.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
 import '../providers/auth_provider.dart';
-import '../providers/dashboard_provider.dart'; // Added import for DashboardProvider
+import '../providers/dashboard_provider.dart';
+import '../providers/lead_provider.dart';
 import '../services/firebase_service.dart';
 import 'add_enquiry_screen.dart';
 import 'update_enquiry_status_screen.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class EnquiriesScreen extends StatefulWidget {
@@ -404,8 +406,12 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
               ),
               IconButton(
                 tooltip: 'WhatsApp',
-                onPressed: () => _launchWhatsApp(phone),
-                icon: const Icon(Icons.chat, color: AppColors.info, size: 20),
+                onPressed: () => _handleWhatsApp(phone),
+                icon: Icon(
+                  FontAwesomeIcons.whatsapp,
+                  color: Color(0xFF25D366),
+                  size: 20,
+                ),
               ),
             ],
           ),
@@ -605,74 +611,60 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
     }
   }
 
-  Future<void> _launchWhatsApp(String rawPhone) async {
-    final phone = _sanitizePhone(rawPhone).replaceAll('+', '');
+  Future<void> _handleWhatsApp(String phone) async {
+    try {
+      final leadProvider = Provider.of<LeadProvider>(context, listen: false);
 
-    // Try multiple WhatsApp launch methods
-    final uris = [
-      Uri.parse('https://wa.me/$phone'),
-      Uri.parse('whatsapp://send?phone=$phone'),
-      Uri.parse('whatsapp://send?phone=$phone&text='),
-    ];
-
-    bool launched = false;
-
-    for (final uri in uris) {
-      try {
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-          launched = true;
-          break;
-        }
-      } catch (e) {
-        continue;
-      }
-    }
-
-    if (!launched) {
+      // Try launching via provider
+      await leadProvider.launchWhatsApp(phone);
+    } catch (e) {
       if (!mounted) return;
 
-      // Show dialog with options
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('WhatsApp Not Available'),
-          content: const Text(
-            'WhatsApp is not installed or cannot be opened. Would you like to:\n\n'
-            '• Install WhatsApp from Play Store\n'
-            '• Send SMS instead\n'
-            '• Copy phone number to clipboard',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _launchPlayStore();
-              },
-              child: const Text('Install WhatsApp'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _launchSMS(phone);
-              },
-              child: const Text('Send SMS'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _copyToClipboard(phone);
-              },
-              child: const Text('Copy Number'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-          ],
-        ),
-      );
+      // Show fallback options if failed
+      _showWhatsAppFallback(phone);
     }
+  }
+
+  void _showWhatsAppFallback(String phone) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('WhatsApp Not Available'),
+        content: const Text(
+          'WhatsApp is not installed or cannot be opened. Would you like to:\n\n'
+          '• Install WhatsApp from Play Store\n'
+          '• Send SMS instead\n'
+          '• Copy phone number to clipboard',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _launchPlayStore();
+            },
+            child: const Text('Install WhatsApp'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _launchSMS(phone);
+            },
+            child: const Text('Send SMS'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _copyToClipboard(phone);
+            },
+            child: const Text('Copy Number'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _launchPlayStore() async {

@@ -20,7 +20,6 @@ class FirebaseService {
   static const String leadNotesCollection = 'lead_notes';
   static const String leadActivitiesCollection = 'lead_activities';
 
-
   // Hardcoded admin credentials
   static const String adminEmail = 'admin@maitexa.com';
   static const String adminPassword = 'admin123';
@@ -854,7 +853,7 @@ class FirebaseService {
           await addRole(roleData);
         }
       }
-      
+
       // Also initialize labels
       await initializeDefaultLabels();
     } catch (e) {
@@ -864,11 +863,18 @@ class FirebaseService {
 
   static Future<void> initializeDefaultLabels() async {
     try {
-      final snapshot = await _firestore.collection(labelsCollection).limit(1).get();
+      final snapshot = await _firestore
+          .collection(labelsCollection)
+          .limit(1)
+          .get();
       if (snapshot.docs.isEmpty) {
         final defaultLabels = [
-          'Devagiri College', 'St Joseph College', 'Providence College', 
-          'Unknown', 'Hot Lead', 'Follow Up'
+          'Devagiri College',
+          'St Joseph College',
+          'Providence College',
+          'Unknown',
+          'Hot Lead',
+          'Follow Up',
         ];
         for (var label in defaultLabels) {
           await addLabel(label);
@@ -878,6 +884,7 @@ class FirebaseService {
       print('Initialize default labels error: $e');
     }
   }
+
   // Call Tracking & Categorization
   static Future<void> recordCall(Map<String, dynamic> callData) async {
     try {
@@ -903,7 +910,10 @@ class FirebaseService {
 
   static Future<String?> getNumberCategory(String number) async {
     try {
-      final doc = await _firestore.collection(numberCategoriesCollection).doc(number).get();
+      final doc = await _firestore
+          .collection(numberCategoriesCollection)
+          .doc(number)
+          .get();
       if (doc.exists) {
         return doc.data()?['category'] as String?;
       }
@@ -972,7 +982,11 @@ class FirebaseService {
         .snapshots();
   }
 
-  static Future<void> addActivity(String leadId, String type, String desc) async {
+  static Future<void> addActivity(
+    String leadId,
+    String type,
+    String desc,
+  ) async {
     await _firestore.collection(leadActivitiesCollection).add({
       'lead_id': leadId,
       'activity_type': type,
@@ -993,14 +1007,16 @@ class FirebaseService {
   }
 
   static Future<void> updateCallLabel(String callId, String label) async {
-    await _firestore.collection(callsCollection).doc(callId).update({'label': label});
+    await _firestore.collection(callsCollection).doc(callId).update({
+      'label': label,
+    });
   }
 
   // Sales Analytics
   static Future<Map<String, dynamic>> getSalesAnalytics() async {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
-    
+
     final QuerySnapshot todayLeads = await _firestore
         .collection(leadsCollection)
         .where('created_at', isGreaterThanOrEqualTo: startOfDay)
@@ -1028,5 +1044,29 @@ class FirebaseService {
       'convertedLeadsCount': convertedLeads.docs.length,
       'pendingFollowUpsCount': followUps.docs.length,
     };
+  }
+
+  // Get lead source breakdown for analytics
+  static Future<Map<String, int>> getLeadSourceStats() async {
+    try {
+      // Aggregate from enquiries collection
+      final QuerySnapshot snapshot = await _firestore
+          .collection(enquiriesCollection)
+          .get();
+      final Map<String, int> sourceStats = {};
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        String source = data['source'] ?? 'Other';
+        // Normalize source names
+        source = source.replaceAll('_', ' ').toUpperCase();
+        sourceStats[source] = (sourceStats[source] ?? 0) + 1;
+      }
+
+      return sourceStats;
+    } catch (e) {
+      print('Get lead source stats error: $e');
+      return {};
+    }
   }
 }

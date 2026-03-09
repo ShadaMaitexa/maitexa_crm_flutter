@@ -18,7 +18,9 @@ import 'add_enquiry_screen.dart';
 import 'enquiries_screen.dart';
 import 'todays_calls_screen.dart';
 import 'sales_analytics_screen.dart';
+import 'whatsapp_campaign_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -139,7 +141,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         decoration: BoxDecoration(
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 20,
               offset: const Offset(0, -5),
             ),
@@ -218,7 +220,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.primary.withOpacity(0.1)
+              ? AppColors.primary.withValues(alpha: 0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),
@@ -385,9 +387,9 @@ class _DashboardContentState extends State<DashboardContent>
   }
 
   Future<void> _navigateToCallLogs() async {
-    await Navigator.of(context).push(
-      CustomPageTransition(child: const TodaysCallsScreen()),
-    );
+    await Navigator.of(
+      context,
+    ).push(CustomPageTransition(child: const TodaysCallsScreen()));
   }
 
   @override
@@ -801,7 +803,7 @@ class _DashboardContentState extends State<DashboardContent>
         borderRadius: BorderRadius.circular(AppSizes.radiusL),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -838,7 +840,7 @@ class _DashboardContentState extends State<DashboardContent>
                 const SizedBox(height: AppSizes.paddingM),
                 LinearProgressIndicator(
                   value: performanceScore / 100,
-                  backgroundColor: AppColors.textSecondary.withOpacity(0.2),
+                  backgroundColor: AppColors.textSecondary.withValues(alpha: 0.1),
                   valueColor: const AlwaysStoppedAnimation<Color>(
                     AppColors.success,
                   ),
@@ -890,7 +892,7 @@ class _DashboardContentState extends State<DashboardContent>
                 icon: Icons.note_outlined,
                 color: Colors.purple,
                 onTap: () {
-                   _showRecentNotesDialog(context);
+                  _showRecentNotesDialog(context);
                 },
               ),
             ),
@@ -908,6 +910,75 @@ class _DashboardContentState extends State<DashboardContent>
             ),
           ],
         ),
+        const SizedBox(height: AppSizes.paddingM),
+        // WhatsApp Campaign Manager banner
+        GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const WhatsAppCampaignScreen()),
+          ),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF25D366), Color(0xFF128C7E)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF25D366).withValues(alpha: 0.1),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const FaIcon(
+                    FontAwesomeIcons.whatsapp,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'WhatsApp Campaign Manager',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Create campaign links · QR codes · Track lead sources',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white70,
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -915,20 +986,32 @@ class _DashboardContentState extends State<DashboardContent>
   void _showRecentNotesDialog(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) {
         return Container(
           padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text("Global Call Notes", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              const Expanded(
-                child: Center(child: Text("Notes feature is active in Lead Profiles and Call Tracker.")),
+              const Text(
+                "Global Call Notes",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
-              CustomButton(text: "Close", onPressed: () => Navigator.pop(context)),
+              const Expanded(
+                child: Center(
+                  child: Text(
+                    "Notes feature is active in Lead Profiles and Call Tracker.",
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              CustomButton(
+                text: "Close",
+                onPressed: () => Navigator.pop(context),
+              ),
             ],
           ),
         );
@@ -949,17 +1032,23 @@ class _DashboardContentState extends State<DashboardContent>
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.2)),
+          border: Border.all(color: color.withValues(alpha: 0.1)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(icon, color: color, size: 28),
             const SizedBox(height: 12),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            Text(subtitle, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            Text(
+              subtitle,
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            ),
           ],
         ),
       ),
@@ -1158,13 +1247,13 @@ class _DashboardContentState extends State<DashboardContent>
               borderRadius: BorderRadius.circular(AppSizes.radiusL),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 20,
                   offset: const Offset(0, 8),
                   spreadRadius: 2,
                 ),
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -1239,13 +1328,13 @@ class _DashboardContentState extends State<DashboardContent>
         borderRadius: BorderRadius.circular(AppSizes.radiusM),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 15,
             offset: const Offset(0, 6),
             spreadRadius: 1,
           ),
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 6,
             offset: const Offset(0, 3),
           ),
@@ -1256,7 +1345,7 @@ class _DashboardContentState extends State<DashboardContent>
           Container(
             padding: const EdgeInsets.all(AppSizes.paddingS),
             decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
+              color: iconColor.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: iconColor, size: 20),
@@ -1316,13 +1405,13 @@ class _DashboardContentState extends State<DashboardContent>
         borderRadius: BorderRadius.circular(AppSizes.radiusM),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 15,
             offset: const Offset(0, 6),
             spreadRadius: 1,
           ),
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 6,
             offset: const Offset(0, 3),
           ),
@@ -1347,7 +1436,7 @@ class _DashboardContentState extends State<DashboardContent>
                 const SizedBox(height: AppSizes.paddingXS),
                 LinearProgressIndicator(
                   value: progressValue,
-                  backgroundColor: AppColors.textSecondary.withOpacity(0.2),
+                  backgroundColor: AppColors.textSecondary.withValues(alpha: 0.1),
                   valueColor: AlwaysStoppedAnimation<Color>(iconColor),
                 ),
               ],

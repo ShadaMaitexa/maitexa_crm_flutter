@@ -35,6 +35,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
     'walk-in',
     'referral',
     'social_media',
+    'whatsapp_campaign',
   ];
   final List<String> _statusOptions = [
     'new',

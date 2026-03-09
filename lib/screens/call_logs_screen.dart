@@ -50,10 +50,11 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
       }
 
       final logs = await CallLogService.getLocalCallLogs();
-      
+
       // Load categories for these numbers from Firebase
       Map<String, String> categories = {};
-      for (var log in logs.take(50)) { // Limit to 50 for performance
+      for (var log in logs.take(500)) {
+        // Limit to 500 for performance
         if (log.number != null && !categories.containsKey(log.number)) {
           final cat = await FirebaseService.getNumberCategory(log.number!);
           if (cat != null) {
@@ -80,7 +81,7 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
     setState(() {
       _numberCategories[number] = category;
     });
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Number $number categorized as $category')),
     );
@@ -88,11 +89,13 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
 
   void _showCategoryDialog(CallLogEntry entry) {
     if (entry.number == null) return;
-    
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSizes.radiusL)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppSizes.radiusL),
+        ),
       ),
       builder: (context) {
         return Container(
@@ -127,7 +130,7 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
                       if (selected) {
                         Navigator.pop(context);
                         _updateCategory(entry.number!, cat);
-                        
+
                         // Also record this specific call in Firebase
                         FirebaseService.recordCall({
                           'number': entry.number,
@@ -160,119 +163,139 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         actions: [
-          IconButton(
-            onPressed: _loadData,
-            icon: const Icon(Icons.refresh),
-          ),
+          IconButton(onPressed: _loadData, icon: const Icon(Icons.refresh)),
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSizes.paddingL),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.error_outline, size: 48, color: AppColors.error),
-                        const SizedBox(height: 16),
-                        Text(_error!, textAlign: TextAlign.center),
-                        const SizedBox(height: 24),
-                        CustomButton(onPressed: _loadData, text: 'Retry'),
-                      ],
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSizes.paddingL),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: AppColors.error,
                     ),
-                  ),
-                )
-              : _callLogs.isEmpty
-                  ? const Center(child: Text('No call logs found'))
-                  : ListView.builder(
-                      itemCount: _callLogs.length,
-                      itemBuilder: (context, index) {
-                        final entry = _callLogs.elementAt(index);
-                        final date = DateTime.fromMillisecondsSinceEpoch(entry.timestamp ?? 0);
-                        final durationStr = entry.duration != null 
-                            ? '${(entry.duration! / 60).floor()}m ${entry.duration! % 60}s'
-                            : '0s';
-                        
-                        final category = _numberCategories[entry.number];
+                    const SizedBox(height: 16),
+                    Text(_error!, textAlign: TextAlign.center),
+                    const SizedBox(height: 24),
+                    CustomButton(onPressed: _loadData, text: 'Retry'),
+                  ],
+                ),
+              ),
+            )
+          : _callLogs.isEmpty
+          ? const Center(child: Text('No call logs found'))
+          : ListView.builder(
+              itemCount: _callLogs.length,
+              itemBuilder: (context, index) {
+                final entry = _callLogs.elementAt(index);
+                final date = DateTime.fromMillisecondsSinceEpoch(
+                  entry.timestamp ?? 0,
+                );
+                final durationStr = entry.duration != null
+                    ? '${(entry.duration! / 60).floor()}m ${entry.duration! % 60}s'
+                    : '0s';
 
-                        return Card(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: AppSizes.paddingM,
-                            vertical: AppSizes.paddingS,
-                          ),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                            side: BorderSide(color: Colors.grey.shade200),
-                          ),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: _getCallTypeColor(entry.callType).withOpacity(0.1),
-                              child: Icon(
-                                _getCallTypeIcon(entry.callType),
-                                color: _getCallTypeColor(entry.callType),
-                                size: 20,
+                final category = _numberCategories[entry.number];
+
+                return Card(
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: AppSizes.paddingM,
+                    vertical: AppSizes.paddingS,
+                  ),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                    side: BorderSide(color: Colors.grey.shade200),
+                  ),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: _getCallTypeColor(
+                        entry.callType,
+                      ).withOpacity(0.1),
+                      child: Icon(
+                        _getCallTypeIcon(entry.callType),
+                        color: _getCallTypeColor(entry.callType),
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(
+                      entry.name ?? entry.number ?? 'Unknown',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${DateFormat('MMM d, h:mm a').format(date)} • $durationStr',
+                        ),
+                        if (category != null)
+                          Container(
+                            margin: const EdgeInsets.only(top: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              category,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                            title: Text(
-                              entry.name ?? entry.number ?? 'Unknown',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('${DateFormat('MMM d, h:mm a').format(date)} • $durationStr'),
-                                if (category != null)
-                                  Container(
-                                    margin: const EdgeInsets.only(top: 4),
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primary.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      category,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.primary,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.category_outlined),
-                              onPressed: () => _showCategoryDialog(entry),
-                              tooltip: 'Categorize',
-                            ),
-                            onTap: () => _showCategoryDialog(entry),
                           ),
-                        );
-                      },
+                      ],
                     ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.category_outlined),
+                      onPressed: () => _showCategoryDialog(entry),
+                      tooltip: 'Categorize',
+                    ),
+                    onTap: () => _showCategoryDialog(entry),
+                  ),
+                );
+              },
+            ),
     );
   }
 
   IconData _getCallTypeIcon(CallType? type) {
     switch (type) {
-      case CallType.incoming: return Icons.call_received;
-      case CallType.outgoing: return Icons.call_made;
-      case CallType.missed: return Icons.call_missed;
-      case CallType.rejected: return Icons.call_end;
-      default: return Icons.call;
+      case CallType.incoming:
+        return Icons.call_received;
+      case CallType.outgoing:
+        return Icons.call_made;
+      case CallType.missed:
+        return Icons.call_missed;
+      case CallType.rejected:
+        return Icons.call_end;
+      default:
+        return Icons.call;
     }
   }
 
   Color _getCallTypeColor(CallType? type) {
     switch (type) {
-      case CallType.incoming: return AppColors.success;
-      case CallType.outgoing: return AppColors.primary;
-      case CallType.missed: return AppColors.error;
-      case CallType.rejected: return AppColors.warning;
-      default: return AppColors.textSecondary;
+      case CallType.incoming:
+        return AppColors.success;
+      case CallType.outgoing:
+        return AppColors.primary;
+      case CallType.missed:
+        return AppColors.error;
+      case CallType.rejected:
+        return AppColors.warning;
+      default:
+        return AppColors.textSecondary;
     }
   }
 }

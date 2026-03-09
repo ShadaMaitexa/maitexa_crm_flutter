@@ -45,12 +45,16 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text("Today's Calls"),
+        title: const Text("Call History"),
         actions: [
           if (callProvider.isSyncing)
             const Padding(
               padding: EdgeInsets.all(16.0),
-              child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
             )
           else
             IconButton(
@@ -70,17 +74,30 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text("No calls found for today"));
+                  return const Center(child: Text("No call history found"));
                 }
 
-                final calls = snapshot.data!.docs.map((doc) => CallModel.fromFirestore(doc)).toList();
-                
+                final calls = snapshot.data!.docs
+                    .map((doc) => CallModel.fromFirestore(doc))
+                    .toList();
+
                 // Apply search and filters
-                final filteredBySearch = _searchQuery.isEmpty 
-                  ? calls 
-                  : calls.where((c) => c.phoneNumber.contains(_searchQuery) || c.label.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
-                
-                final filteredByStatus = _applyFilters(filteredBySearch, leadProvider.selectedFilter);
+                final filteredBySearch = _searchQuery.isEmpty
+                    ? calls
+                    : calls
+                          .where(
+                            (c) =>
+                                c.phoneNumber.contains(_searchQuery) ||
+                                c.label.toLowerCase().contains(
+                                  _searchQuery.toLowerCase(),
+                                ),
+                          )
+                          .toList();
+
+                final filteredByStatus = _applyFilters(
+                  filteredBySearch,
+                  leadProvider.selectedFilter,
+                );
 
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
@@ -109,15 +126,21 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
             decoration: InputDecoration(
               hintText: "Search phone or label...",
               prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchQuery.isNotEmpty 
-                ? IconButton(icon: const Icon(Icons.clear), onPressed: () {
-                    _searchController.clear();
-                    setState(() => _searchQuery = '');
-                  }) 
-                : null,
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                    )
+                  : null,
               filled: true,
               fillColor: AppColors.surface,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
             ),
           ),
         ),
@@ -127,7 +150,13 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
   }
 
   Widget _buildFilters(LeadProvider leadProvider) {
-    final filters = ['All Calls', 'Missed Calls', 'New Leads', 'Follow Ups', 'Converted'];
+    final filters = [
+      'All Calls',
+      'Missed Calls',
+      'New Leads',
+      'Follow Ups',
+      'Converted',
+    ];
     return SizedBox(
       height: 50,
       child: ListView.builder(
@@ -157,14 +186,19 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
 
   List<CallModel> _applyFilters(List<CallModel> calls, String filter) {
     if (filter == 'All Calls') return calls;
-    if (filter == 'Missed Calls') return calls.where((c) => c.callType == 'missed').toList();
-    // For other filters like 'New Leads', we would need to fetch lead data, 
+    if (filter == 'Missed Calls')
+      return calls.where((c) => c.callType == 'missed').toList();
+    // For other filters like 'New Leads', we would need to fetch lead data,
     // but for simplicity in this stream, we just filter by call type or keep all.
     // In a real app, you might use a more complex query or multiple streams.
     return calls;
   }
 
-  Widget _buildCallItem(BuildContext context, CallModel call, LeadProvider leadProvider) {
+  Widget _buildCallItem(
+    BuildContext context,
+    CallModel call,
+    LeadProvider leadProvider,
+  ) {
     final timeStr = DateFormat('h:mm a').format(call.timestamp);
     final callTypeColor = _getCallTypeColor(call.callType);
     final callTypeIcon = _getCallTypeIcon(call.callType);
@@ -185,7 +219,8 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => LeadProfileScreen(leadId: call.leadId!),
+                          builder: (context) =>
+                              LeadProfileScreen(leadId: call.leadId!),
                         ),
                       );
                     }
@@ -208,7 +243,10 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
                           const SizedBox(width: 4),
                           Text(
                             "${_capitalize(call.callType)} Call • $timeStr",
-                            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                            ),
                           ),
                         ],
                       ),
@@ -217,14 +255,21 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
                 ),
                 if (call.label.isNotEmpty && call.label != 'Unknown')
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       call.label,
-                      style: const TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
               ],
@@ -237,7 +282,9 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
                     onPressed: () => leadProvider.launchCall(call.phoneNumber),
                     icon: const Icon(Icons.call, size: 18),
                     label: const Text("Call"),
-                    style: OutlinedButton.styleFrom(foregroundColor: Colors.green),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.green,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -258,18 +305,19 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () => _showAddNoteDialog(context, call),
-                    icon: const Icon(Icons.note_add_outlined),
-                    tooltip: "Add Note",
-                  ),
-                  IconButton(
-                    onPressed: () => _showLabelDialog(context, call, leadProvider),
-                    icon: const Icon(Icons.label_outline),
-                    tooltip: "Add Label",
-                  ),
-                ],
-              ),
+                IconButton(
+                  onPressed: () => _showAddNoteDialog(context, call),
+                  icon: const Icon(Icons.note_add_outlined),
+                  tooltip: "Add Note",
+                ),
+                IconButton(
+                  onPressed: () =>
+                      _showLabelDialog(context, call, leadProvider),
+                  icon: const Icon(Icons.label_outline),
+                  tooltip: "Add Label",
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -285,18 +333,32 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
         content: TextField(
           controller: noteController,
           maxLines: 3,
-          decoration: const InputDecoration(hintText: "Enter note details about this call..."),
+          decoration: const InputDecoration(
+            hintText: "Enter note details about this call...",
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
           ElevatedButton(
             onPressed: () {
               if (noteController.text.isNotEmpty && call.leadId != null) {
-                context.read<LeadProvider>().addNote(call.leadId!, noteController.text);
+                context.read<LeadProvider>().addNote(
+                  call.leadId!,
+                  noteController.text,
+                );
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Note added to lead profile")));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Note added to lead profile")),
+                );
               } else if (call.leadId == null) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error: No lead associated with this call")));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Error: No lead associated with this call"),
+                  ),
+                );
                 Navigator.pop(context);
               }
             },
@@ -307,7 +369,11 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
     );
   }
 
-  void _showLabelDialog(BuildContext context, CallModel call, LeadProvider leadProvider) {
+  void _showLabelDialog(
+    BuildContext context,
+    CallModel call,
+    LeadProvider leadProvider,
+  ) {
     final TextEditingController newLabelController = TextEditingController();
     showModalBottomSheet(
       context: context,
@@ -316,68 +382,97 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
         return Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(context).viewInsets.bottom,
-            left: 16, right: 16, top: 16
+            left: 16,
+            right: 16,
+            top: 16,
           ),
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseService.getLabelsStream(),
             builder: (context, snapshot) {
               final List<String> defaultLabels = [
-                'Devagiri College', 'St Joseph College', 'Providence College', 
-                'Hot Lead', 'Follow Up', 'Unknown'
+                'Devagiri College',
+                'St Joseph College',
+                'Providence College',
+                'Hot Lead',
+                'Follow Up',
+                'Unknown',
               ];
               List<String> labels = defaultLabels;
-              
+
               if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-                labels = snapshot.data!.docs.map((doc) => doc.get('label_name') as String).toList();
+                labels = snapshot.data!.docs
+                    .map((doc) => doc.get('label_name') as String)
+                    .toList();
               }
 
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                   Row(
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text("Assign Label", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const Text(
+                        "Assign Label",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       IconButton(
-                        icon: const Icon(Icons.add_circle, color: AppColors.primary),
+                        icon: const Icon(
+                          Icons.add_circle,
+                          color: AppColors.primary,
+                        ),
                         onPressed: () {
                           _showAddNewLabelDialog(context);
                         },
-                      )
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   Wrap(
                     spacing: 8,
-                    children: labels.map((label) => ActionChip(
-                      label: Text(label),
-                      onPressed: () async {
-                        await context.read<CallProvider>().updateCallLabel(call.id, label);
-                        if (call.leadId != null) {
-                          await FirebaseService.updateLead(call.leadId!, {'label': label});
-                        }
-                        
-                        if (context.mounted) Navigator.pop(context);
+                    children: labels
+                        .map(
+                          (label) => ActionChip(
+                            label: Text(label),
+                            onPressed: () async {
+                              await context
+                                  .read<CallProvider>()
+                                  .updateCallLabel(call.id, label);
+                              if (call.leadId != null) {
+                                await FirebaseService.updateLead(call.leadId!, {
+                                  'label': label,
+                                });
+                              }
 
-                        if (label == 'Follow Up' && call.leadId != null) {
-                          // Redirect to detail page
-                          if (context.mounted) {
-                             Navigator.push(
-                               context,
-                               MaterialPageRoute(
-                                 builder: (context) => LeadProfileScreen(
-                                   leadId: call.leadId!,
-                                 ),
-                               ),
-                             );
-                             ScaffoldMessenger.of(context).showSnackBar(
-                               const SnackBar(content: Text("Lead set to Follow Up. Use 'Schedule' to add reminder.")),
-                             );
-                          }
-                        }
-                      },
-                    )).toList(),
+                              if (context.mounted) Navigator.pop(context);
+
+                              if (label == 'Follow Up' && call.leadId != null) {
+                                // Redirect to detail page
+                                if (context.mounted) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => LeadProfileScreen(
+                                        leadId: call.leadId!,
+                                      ),
+                                    ),
+                                  );
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        "Lead set to Follow Up. Use 'Schedule' to add reminder.",
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                          ),
+                        )
+                        .toList(),
                   ),
                   const SizedBox(height: 24),
                 ],
@@ -401,7 +496,10 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
           autofocus: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
           ElevatedButton(
             onPressed: () {
               if (controller.text.trim().isNotEmpty) {
@@ -416,23 +514,32 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
     );
   }
 
-  String _capitalize(String s) => s.isNotEmpty ? s[0].toUpperCase() + s.substring(1) : s;
+  String _capitalize(String s) =>
+      s.isNotEmpty ? s[0].toUpperCase() + s.substring(1) : s;
 
   IconData _getCallTypeIcon(String type) {
     switch (type) {
-      case 'incoming': return Icons.call_received;
-      case 'outgoing': return Icons.call_made;
-      case 'missed': return Icons.call_missed;
-      default: return Icons.call;
+      case 'incoming':
+        return Icons.call_received;
+      case 'outgoing':
+        return Icons.call_made;
+      case 'missed':
+        return Icons.call_missed;
+      default:
+        return Icons.call;
     }
   }
 
   Color _getCallTypeColor(String type) {
     switch (type) {
-      case 'incoming': return Colors.green;
-      case 'outgoing': return Colors.blue;
-      case 'missed': return Colors.red;
-      default: return Colors.grey;
+      case 'incoming':
+        return Colors.green;
+      case 'outgoing':
+        return Colors.blue;
+      case 'missed':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 }

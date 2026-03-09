@@ -890,7 +890,11 @@ class FirebaseService {
     try {
       await _firestore.collection(callsCollection).add({
         ...callData,
-        'timestamp': FieldValue.serverTimestamp(),
+        'timestamp': callData['timestamp'] != null
+            ? (callData['timestamp'] is int
+                  ? DateTime.fromMillisecondsSinceEpoch(callData['timestamp'])
+                  : callData['timestamp'])
+            : FieldValue.serverTimestamp(),
       });
     } catch (e) {
       print('Record call error: $e');
@@ -997,11 +1001,8 @@ class FirebaseService {
 
   // Call Management
   static Stream<QuerySnapshot> getCallsStream() {
-    final now = DateTime.now();
-    final startOfDay = DateTime(now.year, now.month, now.day);
     return _firestore
         .collection(callsCollection)
-        .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
         .orderBy('timestamp', descending: true)
         .snapshots();
   }

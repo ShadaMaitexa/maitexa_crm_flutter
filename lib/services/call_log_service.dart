@@ -28,15 +28,14 @@ class CallLogService {
     if (!status.isGranted) {
       status = await Permission.phone.request();
     }
-    
+
     var logStatus = await Permission.contacts.status;
     if (!logStatus.isGranted) {
       logStatus = await Permission.contacts.request();
     }
 
     if (await Permission.phone.isGranted) {
-      // 2. Fetch Call Logs (Last 24 hours for efficiency or use a last sync timestamp)
-      // For now, let's just fetch all and rely on deduplication or limit to recent.
+      // 2. Fetch All Call Logs to ensure persistence (even if system purges them)
       Iterable<CallLogEntry> entries = await CallLog.get();
 
       for (var entry in entries) {
@@ -56,8 +55,11 @@ class CallLogService {
     // Check for duplicate call entry in Firestore
     // We can use a unique ID based on number and timestamp
     String callDocId = '${phoneNumber}_${entry.timestamp}';
-    
-    var doc = await _firestore.collection(FirebaseService.callsCollection).doc(callDocId).get();
+
+    var doc = await _firestore
+        .collection(FirebaseService.callsCollection)
+        .doc(callDocId)
+        .get();
     if (doc.exists) return; // Skip if already synced
 
     // Determine call type
@@ -67,18 +69,27 @@ class CallLogService {
     String? leadId = await _findOrCreateLead(phoneNumber);
 
     // 2. Record Call
-    await _firestore.collection(FirebaseService.callsCollection).doc(callDocId).set({
-      'phone_number': phoneNumber,
-      'call_type': callType,
-      'timestamp': DateTime.fromMillisecondsSinceEpoch(entry.timestamp ?? 0),
-      'duration': entry.duration ?? 0,
-      'label': 'Unknown', // Default label
-      'lead_id': leadId,
-    });
-    
+    await _firestore
+        .collection(FirebaseService.callsCollection)
+        .doc(callDocId)
+        .set({
+          'phone_number': phoneNumber,
+          'call_type': callType,
+          'timestamp': DateTime.fromMillisecondsSinceEpoch(
+            entry.timestamp ?? 0,
+          ),
+          'duration': entry.duration ?? 0,
+          'label': 'Unknown', // Default label
+          'lead_id': leadId,
+        });
+
     // 3. Record Activity if lead exists
     if (leadId != null) {
-      await FirebaseService.addActivity(leadId, callType, 'Call recorded from logs');
+      await FirebaseService.addActivity(
+        leadId,
+        callType,
+        'Call recorded from logs',
+      );
     }
   }
 
@@ -94,15 +105,17 @@ class CallLogService {
         return snapshot.docs.first.id;
       } else {
         // Create new lead
-        var docRef = await _firestore.collection(FirebaseService.leadsCollection).add({
-          'name': 'Unknown',
-          'phone': phoneNumber,
-          'source': 'Incoming Call',
-          'label': 'Unknown',
-          'status': 'New Inquiry',
-          'created_at': FieldValue.serverTimestamp(),
-          'last_contacted': FieldValue.serverTimestamp(),
-        });
+        var docRef = await _firestore
+            .collection(FirebaseService.leadsCollection)
+            .add({
+              'name': 'Unknown',
+              'phone': phoneNumber,
+              'source': 'Incoming Call',
+              'label': 'Unknown',
+              'status': 'New Inquiry',
+              'created_at': FieldValue.serverTimestamp(),
+              'last_contacted': FieldValue.serverTimestamp(),
+            });
         return docRef.id;
       }
     } catch (e) {
@@ -110,7 +123,6 @@ class CallLogService {
       return null;
     }
   }
-
 
   String _getCallTypeString(CallType? type) {
     switch (type) {

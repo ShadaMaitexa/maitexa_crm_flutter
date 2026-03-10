@@ -8,7 +8,7 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     
     <application
-        android:label="maitexa_crm_flutter"
+android:label="Acadeno CRM"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

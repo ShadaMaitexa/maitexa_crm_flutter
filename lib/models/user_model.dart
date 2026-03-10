@@ -57,7 +57,7 @@ class User {
       role: json['role'] ?? '',
       phone: json['phone'] ?? '',
       avatar: json['avatar'] ?? generateAvatar(json['name'] ?? ''),
-      organization: json['organization'] ?? 'Maitexa IT Training',
+      organization: json['organization'] ?? 'Acadeno CRM',
       isActive: json['isActive'] ?? true,
       createdAt: parseDateTime(json['createdAt']),
       lastLogin: parseDateTime(json['lastLogin']),

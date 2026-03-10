@@ -21,7 +21,7 @@ class FirebaseService {
   static const String leadActivitiesCollection = 'lead_activities';
 
   // Hardcoded admin credentials
-  static const String adminEmail = 'admin@maitexa.com';
+  static const String adminEmail = 'admin@acadeno.com';
   static const String adminPassword = 'admin123';
   static const String adminName = 'Admin User';
   static const String adminRole = 'admin';
@@ -41,7 +41,7 @@ class FirebaseService {
           role: adminRole,
           phone: '+91 98765 43210',
           avatar: 'A',
-          organization: 'Maitexa IT Training',
+          organization: 'Acadeno CRM',
           isActive: true,
           createdAt: DateTime.now(),
           lastLogin: DateTime.now(),
@@ -145,7 +145,7 @@ class FirebaseService {
       // Set default organization if not provided
       if (userData['organization'] == null ||
           userData['organization'].toString().isEmpty) {
-        userData['organization'] = 'Maitexa IT Training';
+        userData['organization'] = 'Acadeno CRM';
       }
 
       final DocumentReference docRef = await _firestore

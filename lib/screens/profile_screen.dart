@@ -464,7 +464,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       await authProvider.logout();
                       if (mounted) {
                         Navigator.of(context).pushAndRemoveUntil(
-                          MaterialPageRoute(builder: (context) => const SplashScreen()),
+                          MaterialPageRoute(
+                            builder: (context) => const SplashScreen(),
+                          ),
                           (route) => false,
                         );
                       }
@@ -488,7 +490,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: AppSizes.paddingS),
               const Center(
                 child: Text(
-                  'Made with ❤️ for Maitexa Team',
+                  'Made with ❤️ for Acadeno CRM Team',
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 14,

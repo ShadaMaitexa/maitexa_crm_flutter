@@ -105,7 +105,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                       child: Center(
                         child: Text(
-                          'M',
+                          'A',
                           style: TextStyle(
                             fontSize: 60,
                             fontWeight: FontWeight.bold,

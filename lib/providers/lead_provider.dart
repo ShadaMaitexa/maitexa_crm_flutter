@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../constants/app_constants.dart';
 import '../services/firebase_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -54,9 +55,7 @@ class LeadProvider with ChangeNotifier {
       phone = '91$phone';
     }
 
-    final message =
-        customMessage ??
-        "Hello,\n\nThank you for contacting our training institute.\n\nWhich course are you interested in?\n\n1. Python\n2. Data Analytics\n3. Flutter\n4. AI";
+    final message = customMessage ?? AppStrings.defaultWhatsAppMessage;
     final encodedMessage = Uri.encodeComponent(message);
 
     // ---------------------------------------------------------------

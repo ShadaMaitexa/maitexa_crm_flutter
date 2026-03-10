@@ -374,7 +374,6 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
     CallModel call,
     LeadProvider leadProvider,
   ) {
-    final TextEditingController newLabelController = TextEditingController();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -389,7 +388,8 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseService.getLabelsStream(),
             builder: (context, snapshot) {
-              final List<String> defaultLabels = [
+              // Hardcoded defaults always present
+              const List<String> defaultLabels = [
                 'Devagiri College',
                 'St Joseph College',
                 'Providence College',
@@ -397,13 +397,16 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
                 'Follow Up',
                 'Unknown',
               ];
-              List<String> labels = defaultLabels;
 
+              // Merge hardcoded + custom labels from Firestore
+              final Set<String> labelSet = {...defaultLabels};
               if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-                labels = snapshot.data!.docs
-                    .map((doc) => doc.get('label_name') as String)
-                    .toList();
+                for (final doc in snapshot.data!.docs) {
+                  final name = doc.get('label_name') as String? ?? '';
+                  if (name.isNotEmpty) labelSet.add(name);
+                }
               }
+              final List<String> labels = labelSet.toList();
 
               return Column(
                 mainAxisSize: MainAxisSize.min,
@@ -433,6 +436,7 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
                   const SizedBox(height: 16),
                   Wrap(
                     spacing: 8,
+                    runSpacing: 4,
                     children: labels
                         .map(
                           (label) => ActionChip(

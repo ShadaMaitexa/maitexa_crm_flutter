@@ -14,13 +14,13 @@ import 'services/notification_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  
+
   // Initialize default roles
   await FirebaseService.initializeDefaultRoles();
-  
+
   // Initialize notification service
   await NotificationService().initialize();
-  
+
   runApp(const MyApp());
 }
 
@@ -37,7 +37,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => LeadProvider()),
       ],
       child: MaterialApp(
-        title: 'Maitexa CRM',
+        title: 'Acadeno CRM',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,

@@ -62,7 +62,7 @@ class AppSizes {
 }
 
 class AppStrings {
-  static const String appName = 'Maitexa CRM';
+  static const String appName = 'Acadeno CRM';
   static const String appVersion = '1.0.0';
   static const String appTagline = 'Marketing Team Portal';
   static const String secureAccess =
@@ -116,6 +116,10 @@ class AppStrings {
   static const String high = 'HIGH';
   static const String medium = 'MEDIUM';
   static const String low = 'LOW';
+
+  // WhatsApp Messages
+  static const String defaultWhatsAppMessage =
+      "Hello,\n\nThank you for contacting Acadeno CRM.\n\nWhich course are you interested in?\n\n1. Python\n2. Data Analytics\n3. Flutter\n4. AI / Machine Learning";
 }
 
 class AppRoutes {
@@ -133,7 +137,7 @@ class AppRoutes {
 
 class AppConfig {
   // API Configuration
-  static const String baseUrl = 'https://api.maitexa.com';
+  static const String baseUrl = 'https://api.acadeno.com';
   static const String apiVersion = '/api';
   static const int timeoutDuration = 30000; // 30 seconds
 

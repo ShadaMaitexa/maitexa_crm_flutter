@@ -41,7 +41,7 @@ class AuthProvider extends ChangeNotifier {
         _user = user;
         _isAuthenticated = true;
 
-        // Save complete user data to shared preferences
+        // Save complete user data to shared preferences for persistent login
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('user_email', _user!.email);
         await prefs.setString('user_role', _user!.role);
@@ -54,9 +54,6 @@ class AuthProvider extends ChangeNotifier {
 
         _isLoading = false;
         notifyListeners();
-        try {
-          await NotificationService().syncToken(user.id);
-        } catch (_) {}
         return true;
       } else {
         _error = 'Invalid credentials';
@@ -127,9 +124,9 @@ class AuthProvider extends ChangeNotifier {
           );
           _isAuthenticated = true;
         } else {
-          // For other users, restore from saved data or fetch from Firestore
+          // For other users, always restore from saved data (no need to fetch from Firestore)
           if (userId != null && userName != null) {
-            // Restore from saved data
+            // Restore from saved data - this is the key for persistent login
             _user = User(
               id: userId,
               name: userName,
@@ -143,33 +140,8 @@ class AuthProvider extends ChangeNotifier {
               lastLogin: DateTime.now(),
             );
             _isAuthenticated = true;
-            try {
-              await NotificationService().syncToken(userId);
-            } catch (_) {}
           } else {
-            // Fallback: try to fetch from Firestore
-            try {
-              final user = await FirebaseService.getUserByEmail(userEmail);
-              if (user != null) {
-                _user = user;
-                _isAuthenticated = true;
-
-                // Update saved data with complete user info
-                await prefs.setString('user_id', user.id);
-                await prefs.setString('user_name', user.name);
-                await prefs.setString('user_phone', user.phone);
-                await prefs.setString('user_avatar', user.avatar);
-                await prefs.setString('user_organization', user.organization);
-                try {
-                  await NotificationService().syncToken(user.id);
-                } catch (_) {}
-              } else {
-                _isAuthenticated = false;
-              }
-            } catch (e) {
-              print('Error fetching user from Firestore: $e');
-              _isAuthenticated = false;
-            }
+            _isAuthenticated = false;
           }
         }
       }

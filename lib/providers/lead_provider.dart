@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../constants/app_constants.dart';
 import '../services/firebase_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -55,8 +54,10 @@ class LeadProvider with ChangeNotifier {
       phone = '91$phone';
     }
 
-    final message = customMessage ?? AppStrings.defaultWhatsAppMessage;
-    final encodedMessage = Uri.encodeComponent(message);
+    final message = customMessage ?? "";
+    final encodedMessage = message.isNotEmpty
+        ? "&text=${Uri.encodeComponent(message)}"
+        : "";
 
     // ---------------------------------------------------------------
     // Priority order:
@@ -67,38 +68,40 @@ class LeadProvider with ChangeNotifier {
     //  3. Official wa.me short link  → system picks installed WA app
     //  4. api.whatsapp.com web link  → browser fallback
     // ---------------------------------------------------------------
-    final List<Uri> uris = [
-      // 1️⃣  WhatsApp Business — uses the distinct `whatsapp.biz` URI scheme
-      Uri.parse("whatsapp.biz://send?phone=$phone&text=$encodedMessage"),
-
-      // 2️⃣  Regular WhatsApp deep link
-      Uri.parse("whatsapp://send?phone=$phone&text=$encodedMessage"),
-
-      // 3️⃣  Official short-link (opens whichever WA is set as default)
-      Uri.parse("https://wa.me/$phone?text=$encodedMessage"),
-
-      // 4️⃣  Web API fallback (opens in browser)
-      Uri.parse(
-        "https://api.whatsapp.com/send?phone=$phone&text=$encodedMessage",
-      ),
+    final List<Map<String, dynamic>> platforms = [
+      {
+        'uri': Uri.parse("whatsapp.biz://send?phone=$phone$encodedMessage"),
+        'desc': 'WhatsApp Business Direct',
+      },
+      {
+        'uri': Uri.parse("https://wa.me/$phone?$encodedMessage"),
+        'desc': 'Universal Link',
+      },
+      {
+        'uri': Uri.parse("whatsapp://send?phone=$phone$encodedMessage"),
+        'desc': 'WhatsApp Personal',
+      },
     ];
 
-    for (final uri in uris) {
+    for (var platform in platforms) {
+      final uri = platform['uri'] as Uri;
       try {
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
-          return; // success — exit early
+          return;
         }
-      } catch (_) {
-        // try next URI
+      } catch (e) {
+        debugPrint("Failed to launch ${platform['desc']}: $e");
       }
     }
 
-    // Last resort: force open in external browser
-    await launchUrl(
-      Uri.parse("https://wa.me/$phone?text=$encodedMessage"),
-      mode: LaunchMode.externalApplication,
+    // Last resort fallback
+    final fallbackUri = Uri.parse(
+      "https://api.whatsapp.com/send?phone=$phone$encodedMessage",
     );
+    if (await canLaunchUrl(fallbackUri)) {
+      await launchUrl(fallbackUri, mode: LaunchMode.externalApplication);
+    }
   }
 
   Future<void> launchCall(String phone) async {

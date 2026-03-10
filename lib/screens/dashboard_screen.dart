@@ -9,14 +9,11 @@ import '../widgets/custom_page_transition.dart';
 import '../utils/responsive_helper.dart';
 import 'follow_up_screen.dart';
 import 'college_visit_screen.dart';
-import 'analytics_screen.dart';
 import 'profile_screen.dart';
-import 'admin_dashboard_screen.dart';
 import 'add_college_visit_screen.dart';
 import 'add_follow_up_screen.dart';
 import 'add_enquiry_screen.dart';
-import 'enquiries_screen.dart';
-import 'todays_calls_screen.dart';
+import 'call_logs_screen.dart';
 import 'sales_analytics_screen.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -110,18 +107,10 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-    final isAdmin = authProvider.isAdmin();
-
-    // If admin, show only the admin dashboard without bottom navigation
-    if (isAdmin) {
-      return const AdminDashboardScreen();
-    }
-
     // For other users, show the regular dashboard with bottom navigation
     final List<Widget> screens = [
       const DashboardContent(),
-      const TodaysCallsScreen(),
+      const CallLogsScreen(),
       const CollegeVisitScreen(),
       const FollowUpScreen(),
       const SalesAnalyticsScreen(),
@@ -388,7 +377,7 @@ class _DashboardContentState extends State<DashboardContent>
   Future<void> _navigateToCallLogs() async {
     await Navigator.of(
       context,
-    ).push(CustomPageTransition(child: const TodaysCallsScreen()));
+    ).push(CustomPageTransition(child: const CallLogsScreen()));
   }
 
   @override

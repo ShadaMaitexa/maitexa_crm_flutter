@@ -5,6 +5,9 @@ import '../constants/app_constants.dart';
 import '../services/call_log_service.dart';
 import '../services/firebase_service.dart';
 import '../widgets/custom_button.dart';
+import '../providers/lead_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class CallLogsScreen extends StatefulWidget {
   const CallLogsScreen({super.key});
@@ -158,12 +161,16 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Call Tracking'),
+        title: const Text('Device Call Logs'),
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         actions: [
-          IconButton(onPressed: _loadData, icon: const Icon(Icons.refresh)),
+          IconButton(
+            onPressed: _loadData,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh Logs',
+          ),
         ],
       ),
       body: _isLoading
@@ -189,82 +196,184 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
               ),
             )
           : _callLogs.isEmpty
-          ? const Center(child: Text('No call logs found'))
-          : ListView.builder(
-              itemCount: _callLogs.length,
-              itemBuilder: (context, index) {
-                final entry = _callLogs.elementAt(index);
-                final date = DateTime.fromMillisecondsSinceEpoch(
-                  entry.timestamp ?? 0,
-                );
-                final durationStr = entry.duration != null
-                    ? '${(entry.duration! / 60).floor()}m ${entry.duration! % 60}s'
-                    : '0s';
-
-                final category = _numberCategories[entry.number];
-
-                return Card(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: AppSizes.paddingM,
-                    vertical: AppSizes.paddingS,
-                  ),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                    side: BorderSide(color: Colors.grey.shade200),
-                  ),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: _getCallTypeColor(
-                        entry.callType,
-                      ).withOpacity(0.1),
-                      child: Icon(
-                        _getCallTypeIcon(entry.callType),
-                        color: _getCallTypeColor(entry.callType),
-                        size: 20,
+          ? const Center(child: Text('No call logs found on this device'))
+          : Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  color: AppColors.primary.withOpacity(0.1),
+                  child: const Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: AppColors.primary,
                       ),
-                    ),
-                    title: Text(
-                      entry.name ?? entry.number ?? 'Unknown',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${DateFormat('MMM d, h:mm a').format(date)} • $durationStr',
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Showing call logs from this device. You can categorize or contact them via WhatsApp.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.primary,
+                          ),
                         ),
-                        if (category != null)
-                          Container(
-                            margin: const EdgeInsets.only(top: 4),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              category,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w600,
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _callLogs.length,
+                    itemBuilder: (context, index) {
+                      final entry = _callLogs.elementAt(index);
+                      final date = DateTime.fromMillisecondsSinceEpoch(
+                        entry.timestamp ?? 0,
+                      );
+                      final durationStr = entry.duration != null
+                          ? '${(entry.duration! / 60).floor()}m ${entry.duration! % 60}s'
+                          : '0s';
+
+                      final category = _numberCategories[entry.number];
+                      final leadProvider = Provider.of<LeadProvider>(
+                        context,
+                        listen: false,
+                      );
+
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: AppSizes.paddingM,
+                          vertical: AppSizes.paddingS,
+                        ),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                          side: BorderSide(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
+                          children: [
+                            ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: _getCallTypeColor(
+                                  entry.callType,
+                                ).withOpacity(0.1),
+                                child: Icon(
+                                  _getCallTypeIcon(entry.callType),
+                                  color: _getCallTypeColor(entry.callType),
+                                  size: 20,
+                                ),
+                              ),
+                              title: Text(
+                                entry.name ?? entry.number ?? 'Unknown',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (entry.number != null)
+                                    Text(
+                                      entry.number!,
+                                      style: TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  Text(
+                                    '${DateFormat('MMM d, h:mm a').format(date)} • $durationStr',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  if (category != null)
+                                    Container(
+                                      margin: const EdgeInsets.only(top: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withOpacity(
+                                          0.1,
+                                        ),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        category,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(
+                                  Icons.category_outlined,
+                                  size: 20,
+                                ),
+                                onPressed: () => _showCategoryDialog(entry),
+                                tooltip: 'Categorize',
                               ),
                             ),
-                          ),
-                      ],
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.category_outlined),
-                      onPressed: () => _showCategoryDialog(entry),
-                      tooltip: 'Categorize',
-                    ),
-                    onTap: () => _showCategoryDialog(entry),
+                            if (entry.number != null)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  left: 16,
+                                  right: 16,
+                                  bottom: 8,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => leadProvider
+                                            .launchCall(entry.number!),
+                                        icon: const Icon(Icons.call, size: 16),
+                                        label: const Text("Call"),
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 8,
+                                          ),
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => leadProvider
+                                            .launchWhatsApp(entry.number!),
+                                        icon: const Icon(
+                                          FontAwesomeIcons.whatsapp,
+                                          size: 16,
+                                        ),
+                                        label: const Text("WhatsApp"),
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 8,
+                                          ),
+                                          visualDensity: VisualDensity.compact,
+                                          foregroundColor: const Color(
+                                            0xFF25D366,
+                                          ),
+                                          side: const BorderSide(
+                                            color: Color(0xFF25D366),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
+                ),
+              ],
             ),
     );
   }

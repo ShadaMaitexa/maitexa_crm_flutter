@@ -65,36 +65,6 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 const SizedBox(height: AppSizes.paddingXL * 2),
 
-                // App Logo
-                Center(
-                  child: Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withOpacity(0.3),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'A',
-                        style: TextStyle(
-                          fontSize: 50,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textInverse,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSizes.paddingXL),
-
                 // App Name
                 const Text(
                   AppStrings.appName,

@@ -1,4 +1,5 @@
 import 'package:call_log/call_log.dart';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'firebase_service.dart';
@@ -35,16 +36,35 @@ class CallLogService {
     }
 
     if (await Permission.phone.isGranted) {
-      // 2. Fetch All Call Logs to ensure persistence (even if system purges them)
+      // 2. Fetch Call Logs (all available logs on device)
+      // We process them to ensure they are persisted in our CRM (Firebase)
       Iterable<CallLogEntry> entries = await CallLog.get();
 
-      for (var entry in entries) {
-        await _processCallLogEntry(entry);
+      // Sort by timestamp descending
+      final listToProcess = entries.toList();
+      listToProcess.sort(
+        (a, b) => (b.timestamp ?? 0).compareTo(a.timestamp ?? 0),
+      );
+
+      // Cache lead IDs during this sync session to avoid redundant Firestore lookups
+      final Map<String, String?> leadIdCache = {};
+
+      // Limit to 2000 most recent records to prevent indefinite syncing on very old devices
+      // while still capturing effectively 'all' relevant history.
+      for (var entry in listToProcess.take(2000)) {
+        try {
+          await _processCallLogEntry(entry, leadIdCache: leadIdCache);
+        } catch (e) {
+          debugPrint('Error syncing individual call log: $e');
+        }
       }
     }
   }
 
-  Future<void> _processCallLogEntry(CallLogEntry entry) async {
+  Future<void> _processCallLogEntry(
+    CallLogEntry entry, {
+    Map<String, String?>? leadIdCache,
+  }) async {
     if (entry.number == null) return;
 
     String phoneNumber = entry.number!;
@@ -66,7 +86,10 @@ class CallLogService {
     String callType = _getCallTypeString(entry.callType);
 
     // 1. Check if lead exists
-    String? leadId = await _findOrCreateLead(phoneNumber);
+    String? leadId = await _findOrCreateLead(
+      phoneNumber,
+      leadIdCache: leadIdCache,
+    );
 
     // 2. Record Call
     await _firestore
@@ -93,7 +116,14 @@ class CallLogService {
     }
   }
 
-  Future<String?> _findOrCreateLead(String phoneNumber) async {
+  Future<String?> _findOrCreateLead(
+    String phoneNumber, {
+    Map<String, String?>? leadIdCache,
+  }) async {
+    if (leadIdCache != null && leadIdCache.containsKey(phoneNumber)) {
+      return leadIdCache[phoneNumber];
+    }
+
     try {
       var snapshot = await _firestore
           .collection(FirebaseService.leadsCollection)
@@ -102,7 +132,9 @@ class CallLogService {
           .get();
 
       if (snapshot.docs.isNotEmpty) {
-        return snapshot.docs.first.id;
+        final leadId = snapshot.docs.first.id;
+        leadIdCache?[phoneNumber] = leadId;
+        return leadId;
       } else {
         // Create new lead
         var docRef = await _firestore

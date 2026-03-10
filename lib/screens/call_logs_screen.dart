@@ -54,28 +54,44 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
 
       final logs = await CallLogService.getLocalCallLogs();
 
-      // Load categories for these numbers from Firebase
-      Map<String, String> categories = {};
-      for (var log in logs.take(500)) {
-        // Limit to 500 for performance
-        if (log.number != null && !categories.containsKey(log.number)) {
-          final cat = await FirebaseService.getNumberCategory(log.number!);
-          if (cat != null) {
-            categories[log.number!] = cat;
-          }
-        }
-      }
-
+      // Show logs immediately
       setState(() {
         _callLogs = logs;
-        _numberCategories = categories;
         _isLoading = false;
       });
+
+      // Load categories in background without blocking UI
+      _loadCategoriesInBackground(logs);
     } catch (e) {
-      setState(() {
-        _error = 'Error loading call logs: $e';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = 'Error loading call logs: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadCategoriesInBackground(Iterable<CallLogEntry> logs) async {
+    // Process unique numbers (up to 1000) to avoid excessive usage while remaining thorough
+    final uniqueNumbers = logs
+        .map((log) => log.number)
+        .where((number) => number != null)
+        .toSet()
+        .take(1000);
+
+    for (var number in uniqueNumbers) {
+      if (!mounted) return;
+      try {
+        final cat = await FirebaseService.getNumberCategory(number!);
+        if (cat != null && mounted) {
+          setState(() {
+            _numberCategories[number] = cat;
+          });
+        }
+      } catch (e) {
+        debugPrint('Error loading category for $number: $e');
+      }
     }
   }
 

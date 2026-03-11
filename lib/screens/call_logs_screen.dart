@@ -359,8 +359,12 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: OutlinedButton.icon(
-                                        onPressed: () => leadProvider
-                                            .launchWhatsApp(entry.number!),
+                                        onPressed: () =>
+                                            _showWhatsAppSelectionDialog(
+                                              context,
+                                              entry.number!,
+                                              leadProvider,
+                                            ),
                                         icon: const Icon(
                                           FontAwesomeIcons.whatsapp,
                                           size: 16,
@@ -422,5 +426,47 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
       default:
         return AppColors.textSecondary;
     }
+  }
+
+  void _showWhatsAppSelectionDialog(
+    BuildContext context,
+    String phone,
+    LeadProvider provider,
+  ) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Select WhatsApp'),
+        content: const Text('Which WhatsApp would you like to use?'),
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              provider.launchWhatsAppByType(phone, 'business');
+            },
+            icon: const Icon(
+              FontAwesomeIcons.whatsapp,
+              color: Color(0xFF25D366),
+            ),
+            label: const Text('WhatsApp Business'),
+          ),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              provider.launchWhatsAppByType(phone, 'personal');
+            },
+            icon: const Icon(
+              FontAwesomeIcons.whatsapp,
+              color: Color(0xFF25D366),
+            ),
+            label: const Text('WhatsApp Personal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
   }
 }

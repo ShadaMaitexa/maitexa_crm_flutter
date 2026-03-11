@@ -104,6 +104,48 @@ class LeadProvider with ChangeNotifier {
     }
   }
 
+  /// Launch WhatsApp with specific type (Business or Personal)
+  Future<void> launchWhatsAppByType(
+    String rawPhone,
+    String type, {
+    String? customMessage,
+  }) async {
+    // Sanitize phone number: remove non-digits
+    String phone = rawPhone.replaceAll(RegExp(r'[^0-9]'), '');
+
+    // Add default country code +91 if only 10 digits provided
+    if (phone.length == 10 && !phone.startsWith('91')) {
+      phone = '91$phone';
+    }
+
+    final message = customMessage ?? "";
+    final encodedMessage = message.isNotEmpty
+        ? "&text=${Uri.encodeComponent(message)}"
+        : "";
+
+    Uri uri;
+    if (type == 'business') {
+      uri = Uri.parse("whatsapp.biz://send?phone=$phone$encodedMessage");
+    } else {
+      uri = Uri.parse("whatsapp://send?phone=$phone$encodedMessage");
+    }
+
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    } catch (e) {
+      debugPrint("Failed to launch $type: $e");
+    }
+
+    // Fallback to universal link
+    final fallbackUri = Uri.parse("https://wa.me/$phone$encodedMessage");
+    if (await canLaunchUrl(fallbackUri)) {
+      await launchUrl(fallbackUri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   Future<void> launchCall(String phone) async {
     final url = "tel:$phone";
     if (await canLaunchUrl(Uri.parse(url))) {

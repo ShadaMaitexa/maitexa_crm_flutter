@@ -612,17 +612,44 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
   }
 
   Future<void> _handleWhatsApp(String phone) async {
-    try {
-      final leadProvider = Provider.of<LeadProvider>(context, listen: false);
+    // Show selection dialog for WhatsApp type
+    final leadProvider = Provider.of<LeadProvider>(context, listen: false);
 
-      // Try launching via provider
-      await leadProvider.launchWhatsApp(phone);
-    } catch (e) {
-      if (!mounted) return;
-
-      // Show fallback options if failed
-      _showWhatsAppFallback(phone);
-    }
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select WhatsApp'),
+        content: const Text('Which WhatsApp would you like to use?'),
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              leadProvider.launchWhatsAppByType(phone, 'business');
+            },
+            icon: const Icon(
+              FontAwesomeIcons.whatsapp,
+              color: Color(0xFF25D366),
+            ),
+            label: const Text('WhatsApp Business'),
+          ),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              leadProvider.launchWhatsAppByType(phone, 'personal');
+            },
+            icon: const Icon(
+              FontAwesomeIcons.whatsapp,
+              color: Color(0xFF25D366),
+            ),
+            label: const Text('WhatsApp Personal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showWhatsAppFallback(String phone) {

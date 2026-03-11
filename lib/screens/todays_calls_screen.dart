@@ -291,10 +291,12 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () async {
-                      await leadProvider.launchWhatsApp(call.phoneNumber);
-                      if (call.leadId != null) {
-                        await leadProvider.recordWhatsAppActivity(call.leadId!);
-                      }
+                      _showWhatsAppSelectionDialog(
+                        context,
+                        call.phoneNumber,
+                        call.leadId,
+                        leadProvider,
+                      );
                     },
                     icon: const Icon(FontAwesomeIcons.whatsapp, size: 18),
                     label: const Text("WhatsApp"),
@@ -545,5 +547,54 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
       default:
         return Colors.grey;
     }
+  }
+
+  void _showWhatsAppSelectionDialog(
+    BuildContext context,
+    String phone,
+    String? leadId,
+    LeadProvider provider,
+  ) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Select WhatsApp'),
+        content: const Text('Which WhatsApp would you like to use?'),
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              provider.launchWhatsAppByType(phone, 'business');
+              if (leadId != null) {
+                provider.recordWhatsAppActivity(leadId);
+              }
+            },
+            icon: const Icon(
+              FontAwesomeIcons.whatsapp,
+              color: Color(0xFF25D366),
+            ),
+            label: const Text('WhatsApp Business'),
+          ),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              provider.launchWhatsAppByType(phone, 'personal');
+              if (leadId != null) {
+                provider.recordWhatsAppActivity(leadId);
+              }
+            },
+            icon: const Icon(
+              FontAwesomeIcons.whatsapp,
+              color: Color(0xFF25D366),
+            ),
+            label: const Text('WhatsApp Personal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
   }
 }

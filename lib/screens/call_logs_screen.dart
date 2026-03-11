@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:call_log/call_log.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/app_constants.dart';
 import '../services/call_log_service.dart';
 import '../services/firebase_service.dart';
@@ -8,6 +9,8 @@ import '../widgets/custom_button.dart';
 import '../providers/lead_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'add_follow_up_screen.dart';
+import 'call_log_detail_screen.dart';
 
 class CallLogsScreen extends StatefulWidget {
   const CallLogsScreen({super.key});
@@ -324,13 +327,96 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
                                     ),
                                 ],
                               ),
-                              trailing: IconButton(
-                                icon: const Icon(
-                                  Icons.category_outlined,
-                                  size: 20,
-                                ),
-                                onPressed: () => _showCategoryDialog(entry),
-                                tooltip: 'Categorize',
+                              trailing: PopupMenuButton<String>(
+                                icon: const Icon(Icons.more_vert, size: 20),
+                                onSelected: (value) {
+                                  switch (value) {
+                                    case 'detail':
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              CallLogDetailScreen(
+                                                callEntry: entry,
+                                              ),
+                                        ),
+                                      );
+                                      break;
+                                    case 'name':
+                                      _showAddNameDialog(context, entry);
+                                      break;
+                                    case 'label':
+                                      _showLabelDialog(context, entry);
+                                      break;
+                                    case 'note':
+                                      _showAddNoteDialog(context, entry);
+                                      break;
+                                    case 'schedule':
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              AddFollowUpScreen(
+                                                phoneNumber: entry.number,
+                                                contactName: entry.name,
+                                              ),
+                                        ),
+                                      );
+                                      break;
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'detail',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.info_outline, size: 20),
+                                        SizedBox(width: 12),
+                                        Text('View Details'),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'name',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.person_add, size: 20),
+                                        SizedBox(width: 12),
+                                        Text('Add/Save Name'),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'label',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.label_outline, size: 20),
+                                        SizedBox(width: 12),
+                                        Text('Add Label'),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'note',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.note_add_outlined, size: 20),
+                                        SizedBox(width: 12),
+                                        Text('Add Note'),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'schedule',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.calendar_today, size: 20),
+                                        SizedBox(width: 12),
+                                        Text('Schedule Follow-up'),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                             if (entry.number != null)
@@ -464,6 +550,223 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Default labels (fetched from Firebase with hardcoded defaults)
+  final List<String> _defaultLabels = [
+    'Devagiri College',
+    'St Joseph College',
+    'Providence College',
+    'Hot Lead',
+    'Follow Up',
+    'Unknown',
+  ];
+
+  void _showAddNameDialog(BuildContext context, CallLogEntry entry) {
+    if (entry.number == null) return;
+
+    final nameController = TextEditingController(text: entry.name ?? '');
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Add/Save Name'),
+        content: TextField(
+          controller: nameController,
+          decoration: const InputDecoration(
+            labelText: 'Contact Name',
+            hintText: 'Enter contact name',
+            prefixIcon: Icon(Icons.person),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (nameController.text.trim().isNotEmpty) {
+                // Save name to Firebase
+                await FirebaseService.recordCall({
+                  'number': entry.number,
+                  'name': nameController.text.trim(),
+                  'duration': entry.duration,
+                  'timestamp': entry.timestamp,
+                  'type': entry.callType.toString(),
+                  'category': _numberCategories[entry.number],
+                });
+
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Name saved successfully'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLabelDialog(BuildContext context, CallLogEntry entry) {
+    if (entry.number == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+            left: 16,
+            right: 16,
+            top: 16,
+          ),
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseService.getLabelsStream(),
+            builder: (context, snapshot) {
+              // Merge hardcoded + custom labels from Firestore
+              final Set<String> labelSet = {..._defaultLabels};
+              if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+                for (final doc in snapshot.data!.docs) {
+                  final name = doc.get('label_name') as String? ?? '';
+                  if (name.isNotEmpty) labelSet.add(name);
+                }
+              }
+              final labels = labelSet.toList();
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        "Assign Label",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.add_circle,
+                          color: AppColors.primary,
+                        ),
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          _showAddNewLabelDialog(context);
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: labels
+                        .map(
+                          (label) => ActionChip(
+                            label: Text(label),
+                            onPressed: () async {
+                              await _updateCategory(entry.number!, label);
+
+                              if (sheetContext.mounted)
+                                Navigator.pop(sheetContext);
+                            },
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAddNewLabelDialog(BuildContext context) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text("Add New Label"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: "Enter label name..."),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                context.read<LeadProvider>().addLabel(controller.text.trim());
+                Navigator.pop(dialogContext);
+              }
+            },
+            child: const Text("Add"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddNoteDialog(BuildContext context, CallLogEntry entry) {
+    if (entry.number == null) return;
+
+    final noteController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Add Note'),
+        content: TextField(
+          controller: noteController,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: 'Enter note about this call...',
+            prefixIcon: Icon(Icons.note),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (noteController.text.isNotEmpty) {
+                // Record note - for call logs without leadId
+                // This would typically save to a separate notes collection
+                Navigator.pop(dialogContext);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Note: Create a lead first to save notes'),
+                    backgroundColor: AppColors.warning,
+                  ),
+                );
+              }
+            },
+            child: const Text('Save'),
           ),
         ],
       ),

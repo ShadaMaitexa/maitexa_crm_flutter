@@ -262,7 +262,6 @@ class _CampaignListTab extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('wa_campaigns')
-          .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {

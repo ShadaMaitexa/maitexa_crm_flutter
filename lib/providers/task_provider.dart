@@ -25,7 +25,6 @@ class TaskProvider with ChangeNotifier {
     _tasksSubscription = _firestore
         .collection('tasks')
         .where('userId', isEqualTo: userId)
-        .orderBy('date', descending: true)
         .snapshots()
         .listen((snapshot) {
       _allTasks = snapshot.docs

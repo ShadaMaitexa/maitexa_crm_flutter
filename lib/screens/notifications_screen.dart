@@ -61,7 +61,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           .collection('follow_ups')
           .where('followUpDate', isLessThan: Timestamp.fromDate(now))
           .where('status', whereIn: ['pending', 'scheduled'])
-          .orderBy('followUpDate')
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -152,7 +151,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           .collection('college_visits')
           .where('visitDate', isLessThan: Timestamp.fromDate(now))
           .where('status', whereIn: ['pending', 'scheduled'])
-          .orderBy('visitDate')
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {

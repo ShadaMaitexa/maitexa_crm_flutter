@@ -216,7 +216,6 @@ class FirebaseService {
     try {
       final QuerySnapshot snapshot = await _firestore
           .collection(enquiriesCollection)
-          .orderBy('createdAt', descending: true)
           .get();
 
       return snapshot.docs
@@ -265,7 +264,6 @@ class FirebaseService {
     try {
       final QuerySnapshot snapshot = await _firestore
           .collection(collegeVisitsCollection)
-          .orderBy('visitDate', descending: true)
           .get();
 
       return snapshot.docs
@@ -314,7 +312,6 @@ class FirebaseService {
     try {
       final QuerySnapshot snapshot = await _firestore
           .collection(followUpsCollection)
-          .orderBy('followUpDate', descending: true)
           .get();
 
       return snapshot.docs
@@ -345,7 +342,6 @@ class FirebaseService {
   static Stream<QuerySnapshot> getFollowUpsStream() {
     return _firestore
         .collection(followUpsCollection)
-        .orderBy('followUpDate', descending: true)
         .snapshots();
   }
 
@@ -354,7 +350,6 @@ class FirebaseService {
     try {
       final QuerySnapshot snapshot = await _firestore
           .collection(tasksCollection)
-          .orderBy('dueDate', descending: true)
           .get();
 
       return snapshot.docs
@@ -605,7 +600,6 @@ class FirebaseService {
       final QuerySnapshot snapshot = await _firestore
           .collection(enquiriesCollection)
           .where('createdBy', isEqualTo: userId)
-          .orderBy('createdAt', descending: true)
           .get();
 
       return snapshot.docs
@@ -634,7 +628,6 @@ class FirebaseService {
       final QuerySnapshot snapshot = await _firestore
           .collection(collegeVisitsCollection)
           .where('createdBy', isEqualTo: userId)
-          .orderBy('visitDate', descending: true)
           .get();
 
       return snapshot.docs
@@ -663,7 +656,6 @@ class FirebaseService {
       final QuerySnapshot snapshot = await _firestore
           .collection(followUpsCollection)
           .where('createdBy', isEqualTo: userId)
-          .orderBy('followUpDate', descending: true)
           .get();
 
       return snapshot.docs
@@ -688,21 +680,18 @@ class FirebaseService {
   static Stream<QuerySnapshot> getEnquiriesStream() {
     return _firestore
         .collection(enquiriesCollection)
-        .orderBy('createdAt', descending: true)
         .snapshots();
   }
 
   static Stream<QuerySnapshot> getCollegeVisitsStream() {
     return _firestore
         .collection(collegeVisitsCollection)
-        .orderBy('visitDate', descending: true)
         .snapshots();
   }
 
   static Stream<QuerySnapshot> getUsersStream() {
     return _firestore
         .collection(usersCollection)
-        .orderBy('createdAt', descending: true)
         .snapshots();
   }
 
@@ -713,7 +702,6 @@ class FirebaseService {
       // to ensure legacy documents without the field are still returned.
       final QuerySnapshot snapshot = await _firestore
           .collection(rolesCollection)
-          .orderBy('name')
           .get();
 
       final roles = snapshot.docs.map((doc) {
@@ -933,7 +921,6 @@ class FirebaseService {
   static Stream<QuerySnapshot> getLeadsStream() {
     return _firestore
         .collection(leadsCollection)
-        .orderBy('created_at', descending: true)
         .snapshots();
   }
 
@@ -966,7 +953,6 @@ class FirebaseService {
     return _firestore
         .collection(leadNotesCollection)
         .where('lead_id', isEqualTo: leadId)
-        .orderBy('created_at', descending: true)
         .snapshots();
   }
 
@@ -983,7 +969,6 @@ class FirebaseService {
     return _firestore
         .collection(leadActivitiesCollection)
         .where('lead_id', isEqualTo: leadId)
-        .orderBy('timestamp', descending: true)
         .snapshots();
   }
 
@@ -1004,7 +989,6 @@ class FirebaseService {
   static Stream<QuerySnapshot> getCallsStream() {
     return _firestore
         .collection(callsCollection)
-        .orderBy('timestamp', descending: true)
         .snapshots();
   }
 
@@ -1076,7 +1060,6 @@ class FirebaseService {
     return _firestore
         .collection(collegeVisitsCollection)
         .where('createdBy', isEqualTo: userId)
-        .orderBy('visitDate', descending: true)
         .snapshots();
   }
 
@@ -1084,7 +1067,6 @@ class FirebaseService {
     return _firestore
         .collection(followUpsCollection)
         .where('createdBy', isEqualTo: userId)
-        .orderBy('followUpDate', descending: true)
         .snapshots();
   }
 
@@ -1092,7 +1074,6 @@ class FirebaseService {
     return _firestore
         .collection(enquiriesCollection)
         .where('createdBy', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
         .snapshots();
   }
 }

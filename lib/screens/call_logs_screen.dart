@@ -96,16 +96,27 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
 
     _callLogs = _allCallLogs.where((log) {
       bool simMatch = false;
-      String? logSim;
-      if (log.simDisplayName != null && log.simDisplayName!.isNotEmpty) {
-        logSim = log.simDisplayName;
-      } else if (log.phoneAccountId != null && log.phoneAccountId!.isNotEmpty) {
-        logSim = log.phoneAccountId!.contains('1') || log.phoneAccountId == '0'
-            ? 'SIM 1'
-            : 'SIM 2';
+      String? logSim = log.simDisplayName?.isNotEmpty == true
+          ? log.simDisplayName
+          : null;
+      if (logSim == null && log.phoneAccountId?.isNotEmpty == true) {
+        logSim = log.phoneAccountId;
       }
 
-      simMatch = logSim == _selectedSimFilter;
+      // Apply same normalization as service for matching
+      String normalizedLogSim = logSim ?? '';
+      if (normalizedLogSim.toLowerCase().contains('vi') ||
+          normalizedLogSim.toLowerCase().contains('bsnl') ||
+          normalizedLogSim.length > 10) {
+        normalizedLogSim = logSim!;
+      } else if (normalizedLogSim.toLowerCase().contains('1') ||
+          normalizedLogSim == '0') {
+        normalizedLogSim = 'SIM 1';
+      } else {
+        normalizedLogSim = 'SIM 2';
+      }
+
+      simMatch = normalizedLogSim == _selectedSimFilter;
 
       if (!simMatch) return false;
 

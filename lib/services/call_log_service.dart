@@ -28,31 +28,35 @@ class CallLogService {
 
     try {
       // Fetch recent logs only for quick SIM detection (package returns recent first)
-      Iterable<CallLogEntry> recentLogs = (await CallLog.get()).take(50);
+      Iterable<CallLogEntry> recentLogs = (await CallLog.get()).take(200);
 
       Set<String> sims = {};
       for (var log in recentLogs) {
-        String? simId;
-        if (log.simDisplayName != null && log.simDisplayName!.isNotEmpty) {
-          simId = log.simDisplayName;
-        } else if (log.phoneAccountId != null &&
-            log.phoneAccountId!.isNotEmpty) {
+        String? simId = log.simDisplayName?.isNotEmpty == true
+            ? log.simDisplayName
+            : null;
+        if (simId == null && log.phoneAccountId?.isNotEmpty == true) {
           simId = log.phoneAccountId;
         }
 
         if (simId != null) {
-          // Standardize to SIM 1, SIM 2 etc.
-          if (simId.toLowerCase().contains('1') || simId == '0') {
-            sims.add('SIM 1');
-          } else if (simId.toLowerCase().contains('2') || simId == '1') {
-            sims.add('SIM 2');
-          } else {
+          debugPrint('Detected SIM: $simId');
+          // Use actual display name if available, else simple SIM1/SIM2
+          if (simId.toLowerCase().contains('vi') ||
+              simId.toLowerCase().contains('bsnl') ||
+              simId.length > 10) {
             sims.add(simId);
+          } else {
+            final normalized = simId.toLowerCase().contains('1') || simId == '0'
+                ? 'SIM 1'
+                : 'SIM 2';
+            sims.add(normalized);
           }
         }
       }
 
-      final List<String> result = sims.toList();
+      final List<String> result = sims.toList()..sort();
+      debugPrint('Available SIMs: $result');
       if (result.isEmpty) {
         result.addAll(['SIM 1', 'SIM 2']); // Fallback
       }

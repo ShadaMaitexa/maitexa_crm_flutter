@@ -20,10 +20,15 @@ class CallLogsScreen extends StatefulWidget {
 }
 
 class _CallLogsScreenState extends State<CallLogsScreen> {
+  Iterable<CallLogEntry> _allCallLogs = [];
   Iterable<CallLogEntry> _callLogs = [];
   Map<String, String> _numberCategories = {};
   bool _isLoading = true;
   String? _error;
+
+  String? _selectedSimFilter;
+  List<String> _simOptions = [];
+  bool _simSelected = false;
 
   final List<String> _categories = [
     'Enquiry',
@@ -57,11 +62,19 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
 
       final logs = await CallLogService.getLocalCallLogs();
 
-      // Show logs immediately
+      // Get standardized SIMs and show selection modal
+      _simOptions = await CallLogService.getAvailableSims();
+
       setState(() {
-        _callLogs = logs;
+        _allCallLogs = logs;
+        _simSelected = false; // Force selection
         _isLoading = false;
       });
+
+      // Show upfront SIM selection modal
+      if (mounted && _simOptions.isNotEmpty) {
+        _showSimSelectionModal();
+      }
 
       // Load categories in background without blocking UI
       _loadCategoriesInBackground(logs);
@@ -75,6 +88,96 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
     }
   }
 
+  void _applySimFilter() {
+    if (_selectedSimFilter == null) {
+      _callLogs = [];
+      return;
+    }
+
+    _callLogs = _allCallLogs.where((log) {
+      bool simMatch = false;
+      String? logSim;
+      if (log.simDisplayName != null && log.simDisplayName!.isNotEmpty) {
+        logSim = log.simDisplayName;
+      } else if (log.phoneAccountId != null && log.phoneAccountId!.isNotEmpty) {
+        logSim = log.phoneAccountId!.contains('1') || log.phoneAccountId == '0'
+            ? 'SIM 1'
+            : 'SIM 2';
+      }
+
+      simMatch = logSim == _selectedSimFilter;
+
+      if (!simMatch) return false;
+
+      bool typeMatch =
+          (log.callType == CallType.incoming ||
+          log.callType == CallType.outgoing);
+      return typeMatch;
+    }).toList();
+  }
+
+  void _showSimSelectionModal() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Mandatory
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.sim_card_alert, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Select SIM for Call Logs'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Choose which SIM\'s call logs to view:'),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value:
+                      _selectedSimFilter ??
+                      (_simOptions.isNotEmpty ? _simOptions.first : null),
+                  isExpanded: true,
+                  items: _simOptions
+                      .map(
+                        (sim) => DropdownMenuItem(
+                          value: sim,
+                          child: Row(
+                            children: [
+                              Icon(Icons.sim_card, color: Colors.blue),
+                              SizedBox(width: 8),
+                              Text(sim),
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (String? value) {
+                    Navigator.pop(dialogContext);
+                    if (value != null) {
+                      setState(() {
+                        _selectedSimFilter = value;
+                        _simSelected = true;
+                      });
+                      _applySimFilter();
+                    }
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _loadCategoriesInBackground(Iterable<CallLogEntry> logs) async {
     // Process unique numbers (up to 1000) to avoid excessive usage while remaining thorough
     final uniqueNumbers = logs
@@ -84,7 +187,9 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
         .take(1000);
 
     for (var number in uniqueNumbers) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       try {
         final cat = await FirebaseService.getNumberCategory(number!);
         if (cat != null && mounted) {
@@ -214,6 +319,49 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
                 ),
               ),
             )
+          : !_simSelected
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.sim_card_alert,
+                      size: 64,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Select SIM to view call logs',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Tap below to choose SIM 1 or SIM 2',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _showSimSelectionModal,
+                        icon: const Icon(Icons.sim_card),
+                        label: const Text('Select SIM'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Skip'),
+                    ),
+                  ],
+                ),
+              ),
+            )
           : _callLogs.isEmpty
           ? const Center(child: Text('No call logs found on this device'))
           : Column(
@@ -221,22 +369,97 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   color: AppColors.primary.withOpacity(0.1),
-                  child: const Row(
+                  child: Column(
                     children: [
-                      Icon(
-                        Icons.info_outline,
-                        size: 16,
-                        color: AppColors.primary,
-                      ),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Showing call logs from this device. You can categorize or contact them via WhatsApp.',
-                          style: TextStyle(
-                            fontSize: 12,
+                      const Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            size: 16,
                             color: AppColors.primary,
                           ),
-                        ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Showing call logs from this device. You can categorize or contact them via WhatsApp.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.sim_card,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Filter by SIM:',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Container(
+                              height: 36,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(
+                                  AppSizes.radiusM,
+                                ),
+                                border: Border.all(
+                                  color: AppColors.primary.withOpacity(0.3),
+                                ),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value:
+                                      _selectedSimFilter ??
+                                      (_simOptions.isNotEmpty
+                                          ? _simOptions.first
+                                          : null),
+                                  isExpanded: true,
+                                  icon: const Icon(
+                                    Icons.arrow_drop_down,
+                                    color: AppColors.primary,
+                                  ),
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  items: _simOptions.map((String sim) {
+                                    return DropdownMenuItem<String>(
+                                      value: sim,
+                                      child: Text(sim),
+                                    );
+                                  }).toList(),
+                                  onChanged: (String? newValue) {
+                                    if (newValue != null) {
+                                      setState(() {
+                                        _selectedSimFilter = newValue;
+                                        _simSelected = true;
+                                        _applySimFilter();
+                                      });
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -683,8 +906,9 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
                             onPressed: () async {
                               await _updateCategory(entry.number!, label);
 
-                              if (sheetContext.mounted)
+                              if (sheetContext.mounted) {
                                 Navigator.pop(sheetContext);
+                              }
                             },
                           ),
                         )

@@ -23,6 +23,46 @@ class CallLogService {
     return await CallLog.get();
   }
 
+  static Future<List<String>> getAvailableSims() async {
+    await requestPermissions(); // Ensure perms
+
+    try {
+      // Fetch recent logs only for quick SIM detection (package returns recent first)
+      Iterable<CallLogEntry> recentLogs = (await CallLog.get()).take(50);
+
+      Set<String> sims = {};
+      for (var log in recentLogs) {
+        String? simId;
+        if (log.simDisplayName != null && log.simDisplayName!.isNotEmpty) {
+          simId = log.simDisplayName;
+        } else if (log.phoneAccountId != null &&
+            log.phoneAccountId!.isNotEmpty) {
+          simId = log.phoneAccountId;
+        }
+
+        if (simId != null) {
+          // Standardize to SIM 1, SIM 2 etc.
+          if (simId.toLowerCase().contains('1') || simId == '0') {
+            sims.add('SIM 1');
+          } else if (simId.toLowerCase().contains('2') || simId == '1') {
+            sims.add('SIM 2');
+          } else {
+            sims.add(simId);
+          }
+        }
+      }
+
+      final List<String> result = sims.toList();
+      if (result.isEmpty) {
+        result.addAll(['SIM 1', 'SIM 2']); // Fallback
+      }
+      return result;
+    } catch (e) {
+      debugPrint('Error getting SIMs: $e');
+      return ['SIM 1', 'SIM 2'];
+    }
+  }
+
   Future<void> syncCallLogs() async {
     // 1. Request Permission
     var status = await Permission.phone.status;

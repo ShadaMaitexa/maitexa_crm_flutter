@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
+import '../providers/task_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../constants/app_constants.dart';
 import '../widgets/custom_button.dart';
@@ -15,6 +17,7 @@ import 'add_follow_up_screen.dart';
 import 'add_enquiry_screen.dart';
 import 'call_logs_screen.dart';
 import 'sales_analytics_screen.dart';
+import 'add_task_screen.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -114,6 +117,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       const CollegeVisitScreen(),
       const FollowUpScreen(),
       const SalesAnalyticsScreen(),
+      const TasksScreen(),
       const ProfileScreen(),
     ];
 
@@ -183,9 +187,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                 index: 4,
               ),
               _buildAnimatedNavItem(
+                icon: Icons.task_alt,
+                label: 'Tasks',
+                index: 5,
+              ),
+              _buildAnimatedNavItem(
                 icon: Icons.person,
                 label: AppStrings.profile,
-                index: 5,
+                index: 6,
               ),
             ],
           ),
@@ -303,10 +312,12 @@ class _DashboardContentState extends State<DashboardContent>
         listen: false,
       );
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final taskProvider = Provider.of<TaskProvider>(context, listen: false);
 
       // Set current user if available
       if (authProvider.user != null && authProvider.user!.id != 'admin_001') {
         dashboardProvider.setCurrentUser(authProvider.user!.id);
+        taskProvider.fetchTodaysTasks(authProvider.user!.id);
       }
 
       dashboardProvider.loadDashboardData();
@@ -333,6 +344,10 @@ class _DashboardContentState extends State<DashboardContent>
     // Set current user if available
     if (authProvider.user != null && authProvider.user!.id != 'admin_001') {
       dashboardProvider.setCurrentUser(authProvider.user!.id);
+      Provider.of<TaskProvider>(
+        context,
+        listen: false,
+      ).fetchTodaysTasks(authProvider.user!.id);
     }
 
     await dashboardProvider.loadDashboardData();
@@ -380,14 +395,31 @@ class _DashboardContentState extends State<DashboardContent>
     ).push(CustomPageTransition(child: const CallLogsScreen()));
   }
 
+  Future<void> _navigateToAddTask() async {
+    final result = await Navigator.of(
+      context,
+    ).push(CustomPageTransition(child: const AddTaskScreen()));
+
+    if (result == true) {
+      await _refreshAllData();
+      CustomSnackBar.showSuccess(context, 'Task added successfully!');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final dashboardProvider = Provider.of<DashboardProvider>(context);
+    final taskProvider = Provider.of<TaskProvider>(context);
     final user = authProvider.user;
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      floatingActionButton: FloatingActionButton(
+        onPressed: _navigateToAddTask,
+        tooltip: 'Add Note/Task',
+        child: const Icon(Icons.add_task),
+      ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
@@ -725,7 +757,7 @@ class _DashboardContentState extends State<DashboardContent>
                   ),
                 ),
 
-                // Today's Goals - Animated
+                // Today's Tasks & Goals - Animated
                 FadeTransition(
                   opacity: _fadeAnimations[5],
                   child: SlideTransition(
@@ -733,14 +765,23 @@ class _DashboardContentState extends State<DashboardContent>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        ResponsiveHelper.responsiveTextBuilder(
-                          context: context,
-                          text: AppStrings.todayGoals,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            ResponsiveHelper.responsiveTextBuilder(
+                              context: context,
+                              text: 'Today\'s Tasks & Goals',
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: _navigateToAddTask,
+                              child: const Text('+ Add Task'),
+                            ),
+                          ],
                         ),
                         SizedBox(
                           height: ResponsiveHelper.getResponsiveSpacing(
@@ -748,6 +789,8 @@ class _DashboardContentState extends State<DashboardContent>
                             AppSizes.paddingL,
                           ),
                         ),
+                        _buildTodayTasks(taskProvider),
+                        const SizedBox(height: AppSizes.paddingM),
                         _buildTodayGoals(dashboardProvider),
                       ],
                     ),
@@ -1091,6 +1134,96 @@ class _DashboardContentState extends State<DashboardContent>
             ),
           )
           .toList(),
+    );
+  }
+
+  Widget _buildTodayTasks(TaskProvider taskProvider) {
+    if (taskProvider.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final tasks = taskProvider.todaysTasks;
+    if (tasks.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.only(bottom: 16.0),
+        child: Text(
+          'No specific tasks added for today.',
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: tasks.map((task) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: AppSizes.paddingS),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppSizes.radiusM),
+            border: Border.all(color: Colors.grey.withOpacity(0.2)),
+          ),
+          child: ListTile(
+            leading: Checkbox(
+              value: task.isCompleted,
+              activeColor: AppColors.primary,
+              onChanged: (val) {
+                taskProvider.toggleTaskCompletion(task.id, task.isCompleted);
+              },
+            ),
+            title: Text(
+              task.title,
+              style: TextStyle(
+                decoration: task.isCompleted
+                    ? TextDecoration.lineThrough
+                    : null,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (task.description.isNotEmpty) Text(task.description),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.access_time,
+                      size: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      DateFormat('hh:mm a').format(task.date),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    if (task.reminderSet) ...[
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.notifications_active,
+                        size: 12,
+                        color: AppColors.primary,
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+            trailing: IconButton(
+              icon: const Icon(Icons.delete_outline, color: AppColors.error),
+              onPressed: () {
+                taskProvider.deleteTask(task);
+                CustomSnackBar.showSuccess(context, 'Task deleted');
+              },
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 

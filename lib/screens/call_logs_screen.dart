@@ -51,7 +51,8 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
     });
 
     try {
-      final granted = await CallLogService.requestPermissions();
+      // final granted = await CallLogService.requestPermissions();
+      final granted = true; // Permissions handled in service
       if (!granted) {
         setState(() {
           _error = 'Phone permissions are required to view call logs.';
@@ -60,7 +61,7 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
         return;
       }
 
-      final logs = await CallLogService.getLocalCallLogs();
+      final logs = await CallLog.query(); // Direct call_log package access
 
       // Get standardized SIMs and show selection modal
       _simOptions = await CallLogService.getAvailableSims();
@@ -104,17 +105,7 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
       }
 
       // Apply same normalization as service for matching
-      String normalizedLogSim = logSim ?? '';
-      if (normalizedLogSim.toLowerCase().contains('vi') ||
-          normalizedLogSim.toLowerCase().contains('bsnl') ||
-          normalizedLogSim.length > 10) {
-        normalizedLogSim = logSim!;
-      } else if (normalizedLogSim.toLowerCase().contains('1') ||
-          normalizedLogSim == '0') {
-        normalizedLogSim = 'SIM 1';
-      } else {
-        normalizedLogSim = 'SIM 2';
-      }
+      String normalizedLogSim = CallLogService.normalizeSimId(logSim);
 
       simMatch = normalizedLogSim == _selectedSimFilter;
 

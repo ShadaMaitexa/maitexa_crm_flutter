@@ -23,12 +23,26 @@ class CallLogService {
     return await CallLog.get();
   }
 
+  static String normalizeSimId(String? simId) {
+    if (simId == null || simId.trim().isEmpty) return 'Unknown SIM';
+    final trimmed = simId.trim();
+    if (trimmed == '0') return 'SIM 1';
+    if (trimmed == '1') return 'SIM 2';
+    if (trimmed == '2') return 'SIM 3';
+    
+    final upper = trimmed.toUpperCase().replaceAll(' ', '');
+    if (upper == 'SIM1') return 'SIM 1';
+    if (upper == 'SIM2') return 'SIM 2';
+    
+    return trimmed;
+  }
+
   static Future<List<String>> getAvailableSims() async {
     await requestPermissions(); // Ensure perms
 
     try {
       // Fetch recent logs only for quick SIM detection (package returns recent first)
-      Iterable<CallLogEntry> recentLogs = (await CallLog.get()).take(200);
+      Iterable<CallLogEntry> recentLogs = (await CallLog.get()).take(500);
 
       Set<String> sims = {};
       for (var log in recentLogs) {
@@ -39,23 +53,12 @@ class CallLogService {
           simId = log.phoneAccountId;
         }
 
-        if (simId != null) {
-          debugPrint('Detected SIM: $simId');
-          // Use actual display name if available, else simple SIM1/SIM2
-          if (simId.toLowerCase().contains('vi') ||
-              simId.toLowerCase().contains('bsnl') ||
-              simId.length > 10) {
-            sims.add(simId);
-          } else {
-            final normalized = simId.toLowerCase().contains('1') || simId == '0'
-                ? 'SIM 1'
-                : 'SIM 2';
-            sims.add(normalized);
-          }
+        if (simId != null && simId.trim().isNotEmpty) {
+          sims.add(normalizeSimId(simId));
         }
       }
 
-      final List<String> result = sims.toList()..sort();
+      final List<String> result = sims.toList()..sort((a, b) => a.compareTo(b));
       debugPrint('Available SIMs: $result');
       if (result.isEmpty) {
         result.addAll(['SIM 1', 'SIM 2']); // Fallback

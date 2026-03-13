@@ -6,6 +6,7 @@ import 'providers/auth_provider.dart';
 import 'providers/dashboard_provider.dart';
 import 'providers/call_provider.dart';
 import 'providers/lead_provider.dart';
+import 'providers/task_provider.dart';
 import 'screens/splash_screen.dart';
 import 'constants/app_constants.dart';
 import 'services/firebase_service.dart';
@@ -35,6 +36,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => DashboardProvider()),
         ChangeNotifierProvider(create: (_) => CallProvider()),
         ChangeNotifierProvider(create: (_) => LeadProvider()),
+        ChangeNotifierProvider(create: (_) => TaskProvider()),
       ],
       child: MaterialApp(
         title: 'Acadeno CRM',

@@ -103,6 +103,8 @@ dependencies:
   # Firebase Cloud Messaging
   firebase_messaging: ^15.1.3
   font_awesome_flutter: ^10.9.0
+  flutter_local_notifications: ^19.5.0
+  timezone: ^0.10.1
 
 dev_dependencies:
   flutter_test:

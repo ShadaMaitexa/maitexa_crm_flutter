@@ -4,6 +4,7 @@ import '../models/role_model.dart';
 
 class FirebaseService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static FirebaseFirestore get firestore => _firestore;
 
   // Collections
   static const String usersCollection = 'users';
@@ -1069,5 +1070,29 @@ class FirebaseService {
       print('Get lead source stats error: $e');
       return {};
     }
+  }
+
+  static Stream<QuerySnapshot> getUserCollegeVisitsStream(String userId) {
+    return _firestore
+        .collection(collegeVisitsCollection)
+        .where('createdBy', isEqualTo: userId)
+        .orderBy('visitDate', descending: true)
+        .snapshots();
+  }
+
+  static Stream<QuerySnapshot> getUserFollowUpsStream(String userId) {
+    return _firestore
+        .collection(followUpsCollection)
+        .where('createdBy', isEqualTo: userId)
+        .orderBy('followUpDate', descending: true)
+        .snapshots();
+  }
+
+  static Stream<QuerySnapshot> getUserEnquiriesStream(String userId) {
+    return _firestore
+        .collection(enquiriesCollection)
+        .where('createdBy', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
   }
 }

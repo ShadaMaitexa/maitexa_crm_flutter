@@ -22,79 +22,188 @@ class EnquiriesScreen extends StatefulWidget {
 }
 
 class _EnquiriesScreenState extends State<EnquiriesScreen> {
-  List<Map<String, dynamic>> _enquiries = [];
-  bool _isLoading = false;
-  String? _error;
   String _searchQuery = '';
   String _statusFilter = 'all';
 
   @override
-  void initState() {
-    super.initState();
-    _loadEnquiries();
+  Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final userId = authProvider.user?.id;
+    final isAdmin = userId == 'admin_001';
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(AppSizes.paddingL),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Enquiries',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Container(
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      onPressed: () => _navigateToAddEnquiry(context),
+                      icon: const Icon(
+                        Icons.add,
+                        color: AppColors.textInverse,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Search
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSizes.paddingL,
+              ),
+              child: CustomSearchField(
+                hintText: 'Search enquiries...',
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+              ),
+            ),
+
+            const SizedBox(height: AppSizes.paddingL),
+
+            // Status Filter
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSizes.paddingL,
+              ),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildFilterChip('All', 'all'),
+                    const SizedBox(width: AppSizes.paddingS),
+                    _buildFilterChip('New', 'new'),
+                    const SizedBox(width: AppSizes.paddingS),
+                    _buildFilterChip('Contacted', 'contacted'),
+                    const SizedBox(width: AppSizes.paddingS),
+                    _buildFilterChip('Interested', 'interested'),
+                    const SizedBox(width: AppSizes.paddingS),
+                    _buildFilterChip('Not Interested', 'not_interested'),
+                    const SizedBox(width: AppSizes.paddingS),
+                    _buildFilterChip('Converted', 'converted'),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: AppSizes.paddingL),
+
+            // Enquiries List
+            Expanded(
+              child: userId == null
+                  ? const Center(child: Text('User not logged in'))
+                  : StreamBuilder<QuerySnapshot>(
+                      stream: isAdmin
+                          ? FirebaseService.getEnquiriesStream()
+                          : FirebaseService.getUserEnquiriesStream(userId),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text('Error: ${snapshot.error}'),
+                                const SizedBox(height: 16),
+                                CustomButton(
+                                  onPressed: () => setState(() {}),
+                                  text: 'Retry',
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+
+                        final enquiries = snapshot.data?.docs ?? [];
+                        final filteredEnquiries = _applyFilters(enquiries);
+
+                        if (filteredEnquiries.isEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.phone_outlined,
+                                  size: 64,
+                                  color: AppColors.textSecondary,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _searchQuery.isEmpty && _statusFilter == 'all'
+                                      ? 'No enquiries found'
+                                      : 'No enquiries match your search',
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        return ListView.builder(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSizes.paddingL,
+                          ),
+                          itemCount: filteredEnquiries.length,
+                          itemBuilder: (context, index) {
+                            final doc = filteredEnquiries[index];
+                            final enquiry = {'id': doc.id, ...doc.data() as Map<String, dynamic>};
+                            return _buildEnquiryCard(context, enquiry);
+                          },
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  Future<void> _loadEnquiries() async {
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final dashboardProvider = Provider.of<DashboardProvider>(
-        context,
-        listen: false,
-      );
-
-      if (authProvider.user != null && authProvider.user!.id != 'admin_001') {
-        // Load user-specific enquiries
-        _enquiries = await FirebaseService.getUserEnquiries(
-          authProvider.user!.id,
-        );
-      } else {
-        // Load all enquiries for admin
-        _enquiries = await FirebaseService.getEnquiries();
+  List<QueryDocumentSnapshot> _applyFilters(List<QueryDocumentSnapshot> docs) {
+    return docs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      
+      // Status filter
+      if (_statusFilter != 'all' && data['status'] != _statusFilter) {
+        return false;
       }
 
-      // Also refresh dashboard data to keep stats in sync
-      await dashboardProvider.refreshData();
-
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  List<Map<String, dynamic>> get _filteredEnquiries {
-    List<Map<String, dynamic>> filtered = _enquiries;
-
-    // Apply status filter
-    if (_statusFilter != 'all') {
-      filtered = filtered.where((enquiry) {
-        return enquiry['status'] == _statusFilter;
-      }).toList();
-    }
-
-    // Apply search filter
-    if (_searchQuery.isNotEmpty) {
-      filtered = filtered.where((enquiry) {
-        final name = enquiry['name']?.toString().toLowerCase() ?? '';
-        final phone = enquiry['phone']?.toString().toLowerCase() ?? '';
-        final email = enquiry['email']?.toString().toLowerCase() ?? '';
-        final college = enquiry['college']?.toString().toLowerCase() ?? '';
-        final course = enquiry['course']?.toString().toLowerCase() ?? '';
+      // Search filter
+      if (_searchQuery.isNotEmpty) {
+        final name = data['name']?.toString().toLowerCase() ?? '';
+        final phone = data['phone']?.toString().toLowerCase() ?? '';
+        final email = data['email']?.toString().toLowerCase() ?? '';
+        final college = data['college']?.toString().toLowerCase() ?? '';
+        final course = data['course']?.toString().toLowerCase() ?? '';
 
         final query = _searchQuery.toLowerCase();
         return name.contains(query) ||
@@ -102,171 +211,10 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
             email.contains(query) ||
             college.contains(query) ||
             course.contains(query);
-      }).toList();
-    }
+      }
 
-    return filtered;
-  }
-
-  Future<void> _navigateToAddEnquiry() async {
-    final result = await Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (context) => const AddEnquiryScreen()));
-
-    if (result == true) {
-      // Refresh the list if a new enquiry was added
-      _loadEnquiries();
-
-      // Also refresh dashboard data
-      final dashboardProvider = Provider.of<DashboardProvider>(
-        context,
-        listen: false,
-      );
-      await dashboardProvider.refreshData();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _loadEnquiries,
-          child: Column(
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.all(AppSizes.paddingL),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Enquiries',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        onPressed: _navigateToAddEnquiry,
-                        icon: const Icon(
-                          Icons.add,
-                          color: AppColors.textInverse,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Search
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSizes.paddingL,
-                ),
-                child: CustomSearchField(
-                  hintText: 'Search enquiries...',
-                  onChanged: (value) {
-                    setState(() {
-                      _searchQuery = value;
-                    });
-                  },
-                ),
-              ),
-
-              const SizedBox(height: AppSizes.paddingL),
-
-              // Status Filter
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSizes.paddingL,
-                ),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildFilterChip('All', 'all'),
-                      const SizedBox(width: AppSizes.paddingS),
-                      _buildFilterChip('New', 'new'),
-                      const SizedBox(width: AppSizes.paddingS),
-                      _buildFilterChip('Contacted', 'contacted'),
-                      const SizedBox(width: AppSizes.paddingS),
-                      _buildFilterChip('Interested', 'interested'),
-                      const SizedBox(width: AppSizes.paddingS),
-                      _buildFilterChip('Not Interested', 'not_interested'),
-                      const SizedBox(width: AppSizes.paddingS),
-                      _buildFilterChip('Converted', 'converted'),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: AppSizes.paddingL),
-
-              // Enquiries List
-              Expanded(
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _error != null
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text('Error: $_error'),
-                            const SizedBox(height: 16),
-                            CustomButton(
-                              onPressed: _loadEnquiries,
-                              text: 'Retry',
-                            ),
-                          ],
-                        ),
-                      )
-                    : _filteredEnquiries.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.phone_outlined,
-                              size: 64,
-                              color: AppColors.textSecondary,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              _searchQuery.isEmpty && _statusFilter == 'all'
-                                  ? 'No enquiries found'
-                                  : 'No enquiries match your search',
-                              style: TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSizes.paddingL,
-                        ),
-                        itemCount: _filteredEnquiries.length,
-                        itemBuilder: (context, index) {
-                          final enquiry = _filteredEnquiries[index];
-                          return _buildEnquiryCard(enquiry);
-                        },
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+      return true;
+    }).toList();
   }
 
   Widget _buildFilterChip(String label, String value) {
@@ -280,7 +228,7 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
         });
       },
       backgroundColor: AppColors.surface,
-      selectedColor: AppColors.primary.withOpacity(0.2),
+      selectedColor: AppColors.primary.withValues(alpha: 0.2),
       labelStyle: TextStyle(
         color: isSelected ? AppColors.primary : AppColors.textSecondary,
         fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
@@ -288,7 +236,7 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
     );
   }
 
-  Widget _buildEnquiryCard(Map<String, dynamic> enquiry) {
+  Widget _buildEnquiryCard(BuildContext context, Map<String, dynamic> enquiry) {
     final name = enquiry['name'] ?? 'Name';
     final phone = enquiry['phone'] ?? 'Phone';
     final email = enquiry['email'] ?? 'Email';
@@ -312,7 +260,7 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
         borderRadius: BorderRadius.circular(AppSizes.radiusL),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -326,7 +274,7 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
               Container(
                 padding: const EdgeInsets.all(AppSizes.paddingM),
                 decoration: BoxDecoration(
-                  color: _getStatusColor(status).withOpacity(0.1),
+                  color: _getStatusColor(status).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -362,7 +310,7 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _getStatusColor(status).withOpacity(0.1),
+                  color: _getStatusColor(status).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -397,7 +345,7 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
               const SizedBox(width: AppSizes.paddingS),
               IconButton(
                 tooltip: 'Call',
-                onPressed: () => _launchPhoneCall(phone),
+                onPressed: () => _launchPhoneCall(context, phone),
                 icon: const Icon(
                   Icons.call,
                   color: AppColors.success,
@@ -406,8 +354,8 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
               ),
               IconButton(
                 tooltip: 'WhatsApp',
-                onPressed: () => _handleWhatsApp(phone),
-                icon: Icon(
+                onPressed: () => _handleWhatsApp(context, phone),
+                icon: const Icon(
                   FontAwesomeIcons.whatsapp,
                   color: Color(0xFF25D366),
                   size: 20,
@@ -576,10 +524,10 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
                           ),
                         )
                         .then((result) {
-                          if (result == true) {
-                            _loadEnquiries();
-                          }
-                        });
+                      if (result == true) {
+                        // The StreamBuilder will handle the refresh automatically
+                      }
+                    });
                   },
                 ),
               ),
@@ -594,11 +542,10 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
   String _sanitizePhone(String raw) {
     final onlyDigits = raw.replaceAll(RegExp(r'[^0-9+]'), '');
     if (onlyDigits.startsWith('+')) return onlyDigits;
-    // Default country code can be adjusted as needed
-    return '+91${onlyDigits}';
+    return '+91$onlyDigits';
   }
 
-  Future<void> _launchPhoneCall(String rawPhone) async {
+  Future<void> _launchPhoneCall(BuildContext context, String rawPhone) async {
     final phone = _sanitizePhone(rawPhone);
     final uri = Uri(scheme: 'tel', path: phone);
     if (await canLaunchUrl(uri)) {
@@ -611,8 +558,7 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
     }
   }
 
-  Future<void> _handleWhatsApp(String phone) async {
-    // Show selection dialog for WhatsApp type
+  Future<void> _handleWhatsApp(BuildContext context, String phone) async {
     final leadProvider = Provider.of<LeadProvider>(context, listen: false);
 
     showDialog(
@@ -652,99 +598,18 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
     );
   }
 
-  void _showWhatsAppFallback(String phone) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('WhatsApp Not Available'),
-        content: const Text(
-          'WhatsApp is not installed or cannot be opened. Would you like to:\n\n'
-          '• Install WhatsApp from Play Store\n'
-          '• Send SMS instead\n'
-          '• Copy phone number to clipboard',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _launchPlayStore();
-            },
-            child: const Text('Install WhatsApp'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _launchSMS(phone);
-            },
-            child: const Text('Send SMS'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _copyToClipboard(phone);
-            },
-            child: const Text('Copy Number'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
+  Future<void> _navigateToAddEnquiry(BuildContext context) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => const AddEnquiryScreen()),
     );
-  }
 
-  Future<void> _launchPlayStore() async {
-    try {
-      final uri = Uri.parse('market://details?id=com.whatsapp');
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        // Fallback to web browser
-        final webUri = Uri.parse(
-          'https://play.google.com/store/apps/details?id=com.whatsapp',
-        );
-        await launchUrl(webUri, mode: LaunchMode.externalApplication);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
+    if (result == true) {
+      // The StreamBuilder will handle the refresh automatically
+      final dashboardProvider = Provider.of<DashboardProvider>(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Cannot open Play Store')));
-    }
-  }
-
-  Future<void> _launchSMS(String phone) async {
-    try {
-      final uri = Uri.parse('sms:$phone');
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Cannot open SMS app')));
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Cannot open SMS app')));
-    }
-  }
-
-  Future<void> _copyToClipboard(String phone) async {
-    try {
-      await Clipboard.setData(ClipboardData(text: phone));
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Phone number $phone copied to clipboard')),
+        listen: false,
       );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Cannot copy to clipboard')));
+      await dashboardProvider.refreshData();
     }
   }
 

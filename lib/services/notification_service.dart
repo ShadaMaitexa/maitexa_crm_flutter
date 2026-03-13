@@ -2,6 +2,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -76,5 +77,35 @@ class NotificationService {
 
   Future<void> cancelReminder(int id) async {
     await _notificationsPlugin.cancel(id);
+  }
+
+  /// Returns the count of overdue notifications (follow-ups + college visits)
+  /// that are still pending/scheduled for the given [userId].
+  Future<int> getNotificationCount(String userId) async {
+    try {
+      final now = Timestamp.fromDate(DateTime.now());
+
+      final followUpsQuery = FirebaseFirestore.instance
+          .collection('follow_ups')
+          .where('createdBy', isEqualTo: userId)
+          .where('followUpDate', isLessThan: now)
+          .where('status', whereIn: ['pending', 'scheduled']);
+
+      final visitsQuery = FirebaseFirestore.instance
+          .collection('college_visits')
+          .where('createdBy', isEqualTo: userId)
+          .where('visitDate', isLessThan: now)
+          .where('status', whereIn: ['pending', 'scheduled']);
+
+      final results = await Future.wait([
+        followUpsQuery.get(),
+        visitsQuery.get(),
+      ]);
+
+      return results[0].docs.length + results[1].docs.length;
+    } catch (e) {
+      debugPrint('getNotificationCount error: $e');
+      return 0;
+    }
   }
 }

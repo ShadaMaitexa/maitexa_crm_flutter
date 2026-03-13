@@ -18,6 +18,7 @@ import 'add_enquiry_screen.dart';
 import 'call_logs_screen.dart';
 import 'sales_analytics_screen.dart';
 import 'add_task_screen.dart';
+import 'tasks_screen.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -117,7 +118,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       const CollegeVisitScreen(),
       const FollowUpScreen(),
       const SalesAnalyticsScreen(),
-      // const TasksScreen(), // Step 2 pending
+      const TasksScreen(),
       const ProfileScreen(),
     ];
 
@@ -1163,7 +1164,7 @@ class _DashboardContentState extends State<DashboardContent>
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(AppSizes.radiusM),
-            border: Border.all(color: Colors.grey.withOpacity(0.2)),
+            border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
           ),
           child: ListTile(
             leading: Checkbox(

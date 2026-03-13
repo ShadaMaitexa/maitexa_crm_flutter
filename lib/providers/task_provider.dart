@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/task_model.dart';
@@ -8,37 +9,59 @@ class TaskProvider with ChangeNotifier {
   final NotificationService _notificationService = NotificationService();
   
   List<TaskModel> _todaysTasks = [];
+  List<TaskModel> _allTasks = [];
   bool _isLoading = false;
+  StreamSubscription? _tasksSubscription;
 
   List<TaskModel> get todaysTasks => _todaysTasks;
+  List<TaskModel> get allTasks => _allTasks;
   bool get isLoading => _isLoading;
 
-  Future<void> fetchTodaysTasks(String userId) async {
+  void setupTaskListener(String userId) {
+    _tasksSubscription?.cancel();
     _isLoading = true;
     notifyListeners();
 
-    try {
+    _tasksSubscription = _firestore
+        .collection('tasks')
+        .where('userId', isEqualTo: userId)
+        .orderBy('date', descending: true)
+        .snapshots()
+        .listen((snapshot) {
+      _allTasks = snapshot.docs
+          .map((doc) => TaskModel.fromMap(doc.data(), doc.id))
+          .toList();
+      
       final now = DateTime.now();
       final startOfDay = DateTime(now.year, now.month, now.day);
       final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
+      
+      _todaysTasks = _allTasks.where((task) {
+        return task.date.isAfter(startOfDay.subtract(const Duration(seconds: 1))) &&
+               task.date.isBefore(endOfDay.add(const Duration(seconds: 1)));
+      }).toList().reversed.toList(); // Keep original order (oldest first for today) or sort as needed
+      
+      // Secondary sort for Today's tasks by date ascending
+      _todaysTasks.sort((a, b) => a.date.compareTo(b.date));
 
-      final snapshot = await _firestore
-          .collection('tasks')
-          .where('userId', isEqualTo: userId)
-          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
-          .orderBy('date')
-          .get();
-
-      _todaysTasks = snapshot.docs
-          .map((doc) => TaskModel.fromMap(doc.data(), doc.id))
-          .toList();
-    } catch (e) {
-      debugPrint('Error fetching tasks: $e');
-    } finally {
       _isLoading = false;
       notifyListeners();
-    }
+    }, onError: (e) {
+      debugPrint('Error in task listener: $e');
+      _isLoading = false;
+      notifyListeners();
+    });
+  }
+
+  Future<void> fetchTodaysTasks(String userId) async {
+    // If listener is active, it will handle updates. 
+    // This method is kept for backward compatibility but calls setupTaskListener.
+    setupTaskListener(userId);
+  }
+
+  Future<void> fetchAllTasks(String userId) async {
+    // If listener is active, it will handle updates.
+    setupTaskListener(userId);
   }
 
   Future<void> addTask(TaskModel task) async {
@@ -58,8 +81,7 @@ class TaskProvider with ChangeNotifier {
           );
         }
       }
-
-      await fetchTodaysTasks(addedTask.userId);
+      // No need to manually refresh, the listener will pick it up
     } catch (e) {
       debugPrint('Error adding task: $e');
       rethrow;
@@ -71,21 +93,7 @@ class TaskProvider with ChangeNotifier {
       await _firestore.collection('tasks').doc(taskId).update({
         'isCompleted': !currentStatus,
       });
-      // update local
-      final index = _todaysTasks.indexWhere((t) => t.id == taskId);
-      if (index != -1) {
-        _todaysTasks[index] = TaskModel(
-          id: _todaysTasks[index].id,
-          title: _todaysTasks[index].title,
-          description: _todaysTasks[index].description,
-          date: _todaysTasks[index].date,
-          userId: _todaysTasks[index].userId,
-          isCompleted: !currentStatus,
-          reminderSet: _todaysTasks[index].reminderSet,
-          notificationId: _todaysTasks[index].notificationId,
-        );
-        notifyListeners();
-      }
+      // Listener will update local state
     } catch (e) {
       debugPrint('Error toggling task completion: $e');
     }
@@ -97,10 +105,15 @@ class TaskProvider with ChangeNotifier {
       if (task.reminderSet) {
         await _notificationService.cancelReminder(task.notificationId);
       }
-      _todaysTasks.removeWhere((t) => t.id == task.id);
-      notifyListeners();
+      // Listener will update local state
     } catch (e) {
       debugPrint('Error deleting task: $e');
     }
+  }
+
+  @override
+  void dispose() {
+    _tasksSubscription?.cancel();
+    super.dispose();
   }
 }

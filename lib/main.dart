@@ -87,7 +87,7 @@ class MyApp extends StatelessWidget {
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppSizes.radiusM),
               borderSide: BorderSide(
-                color: AppColors.textSecondary.withOpacity(0.2),
+                color: AppColors.textSecondary.withValues(alpha: 0.2),
               ),
             ),
             focusedBorder: OutlineInputBorder(
@@ -103,14 +103,14 @@ class MyApp extends StatelessWidget {
               vertical: AppSizes.paddingM,
             ),
             hintStyle: TextStyle(
-              color: AppColors.textSecondary.withOpacity(0.7),
+              color: AppColors.textSecondary.withValues(alpha: 0.7),
               fontSize: 16,
             ),
           ),
           cardTheme: CardThemeData(
             color: AppColors.surface,
             elevation: 4,
-            shadowColor: Colors.black.withOpacity(0.1),
+            shadowColor: Colors.black.withValues(alpha: 0.1),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppSizes.radiusL),
             ),
@@ -147,13 +147,13 @@ class MyApp extends StatelessWidget {
             behavior: SnackBarBehavior.floating,
           ),
           dividerTheme: DividerThemeData(
-            color: AppColors.textSecondary.withOpacity(0.2),
+            color: AppColors.textSecondary.withValues(alpha: 0.2),
             thickness: 1,
             space: 1,
           ),
           chipTheme: ChipThemeData(
             backgroundColor: AppColors.surface,
-            selectedColor: AppColors.primary.withOpacity(0.2),
+            selectedColor: AppColors.primary.withValues(alpha: 0.2),
             labelStyle: const TextStyle(
               color: AppColors.textPrimary,
               fontSize: 14,

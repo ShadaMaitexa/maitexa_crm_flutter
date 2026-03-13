@@ -95,26 +95,53 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
       return;
     }
 
+    // Identify unique phone accounts to accurately map SIM 1 and SIM 2
+    List<String> uniqueUuids = _allCallLogs
+        .map((log) => log.phoneAccountId ?? '')
+        .where((id) => id.trim().isNotEmpty && id != '0' && id != '1' && !id.toLowerCase().contains('sim'))
+        .toSet()
+        .toList()
+        ..sort();
+
     _callLogs = _allCallLogs.where((log) {
-      bool simMatch = false;
-      String? logSim = log.simDisplayName?.isNotEmpty == true
-          ? log.simDisplayName
-          : null;
-      if (logSim == null && log.phoneAccountId?.isNotEmpty == true) {
-        logSim = log.phoneAccountId;
-      }
-
-      // Apply same normalization as service for matching
-      String normalizedLogSim = CallLogService.normalizeSimId(logSim);
-
-      simMatch = normalizedLogSim == _selectedSimFilter;
-
-      if (!simMatch) return false;
-
       bool typeMatch =
           (log.callType == CallType.incoming ||
           log.callType == CallType.outgoing);
-      return typeMatch;
+
+      if (!typeMatch) return false;
+
+      String accountId = log.phoneAccountId?.trim() ?? '';
+      String logSim = log.simDisplayName?.toLowerCase().trim() ?? '';
+
+      // If no SIM info is present at all, assume SIM 1 (common for older devices or single SIM)
+      if (accountId.isEmpty && logSim.isEmpty) {
+        return _selectedSimFilter == 'SIM 1';
+      }
+
+      // Heuristic 1: Explicit account IDs or display names
+      if (_selectedSimFilter == 'SIM 1') {
+        if (accountId == '0' || accountId.toLowerCase().contains('sim1') || accountId.toLowerCase().contains('sim 1') ||
+            logSim.contains('sim 1') || logSim.contains('sim1') || logSim == 'sim 1' || logSim == 'sim 0') {
+          return true;
+        }
+      } else if (_selectedSimFilter == 'SIM 2') {
+        if (accountId == '1' || accountId.toLowerCase().contains('sim2') || accountId.toLowerCase().contains('sim 2') ||
+            logSim.contains('sim 2') || logSim.contains('sim2') || logSim == 'sim 2' || logSim == 'sim 1') {
+          return true;
+        }
+      }
+
+      // Heuristic 2: Uniqueness sorting for complex account IDs like ICCID or UUID
+      if (uniqueUuids.isNotEmpty && uniqueUuids.contains(accountId)) {
+        if (_selectedSimFilter == 'SIM 1' && accountId == uniqueUuids.first) {
+          return true;
+        }
+        if (_selectedSimFilter == 'SIM 2' && uniqueUuids.length > 1 && accountId == uniqueUuids[1]) {
+          return true;
+        }
+      }
+
+      return false;
     }).toList();
   }
 
@@ -370,7 +397,7 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(12),
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   child: Column(
                     children: [
                       const Row(
@@ -422,7 +449,7 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
                                   AppSizes.radiusM,
                                 ),
                                 border: Border.all(
-                                  color: AppColors.primary.withOpacity(0.3),
+                                  color: AppColors.primary.withValues(alpha: 0.3),
                                 ),
                               ),
                               child: DropdownButtonHideUnderline(
@@ -500,7 +527,7 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
                               leading: CircleAvatar(
                                 backgroundColor: _getCallTypeColor(
                                   entry.callType,
-                                ).withOpacity(0.1),
+                                ).withValues(alpha: 0.1),
                                 child: Icon(
                                   _getCallTypeIcon(entry.callType),
                                   color: _getCallTypeColor(entry.callType),
@@ -964,13 +991,21 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Add Note'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.note_add, color: AppColors.primary),
+            const SizedBox(width: 8),
+            const Text('Add Note'),
+          ],
+        ),
         content: TextField(
           controller: noteController,
           maxLines: 3,
-          decoration: const InputDecoration(
+          autofocus: true,
+          decoration: InputDecoration(
             hintText: 'Enter note about this call...',
-            prefixIcon: Icon(Icons.note),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           ),
         ),
         actions: [
@@ -979,17 +1014,58 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              if (noteController.text.isNotEmpty) {
-                // Record note - for call logs without leadId
-                // This would typically save to a separate notes collection
-                Navigator.pop(dialogContext);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Note: Create a lead first to save notes'),
-                    backgroundColor: AppColors.warning,
-                  ),
-                );
+            onPressed: () async {
+              final note = noteController.text.trim();
+              if (note.isEmpty) return;
+
+              Navigator.pop(dialogContext);
+
+              try {
+                // Find or create lead for this number, then save note
+                final snapshot = await FirebaseFirestore.instance
+                    .collection(FirebaseService.leadsCollection)
+                    .where('phone', isEqualTo: entry.number)
+                    .limit(1)
+                    .get();
+
+                String leadId;
+                if (snapshot.docs.isNotEmpty) {
+                  leadId = snapshot.docs.first.id;
+                } else {
+                  // Create a minimal lead so the note has somewhere to live
+                  final ref = await FirebaseFirestore.instance
+                      .collection(FirebaseService.leadsCollection)
+                      .add({
+                    'name': entry.name ?? 'Unknown',
+                    'phone': entry.number,
+                    'source': 'Call Log Note',
+                    'label': 'Unknown',
+                    'status': 'New Inquiry',
+                    'created_at': FieldValue.serverTimestamp(),
+                    'last_contacted': FieldValue.serverTimestamp(),
+                  });
+                  leadId = ref.id;
+                }
+
+                await FirebaseService.addNote(leadId, note);
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Note saved successfully'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to save note: $e'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
               }
             },
             child: const Text('Save'),

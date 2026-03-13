@@ -18,213 +18,159 @@ class CollegeVisitScreen extends StatefulWidget {
 }
 
 class _CollegeVisitScreenState extends State<CollegeVisitScreen> {
-  List<Map<String, dynamic>> _collegeVisits = [];
-  bool _isLoading = false;
-  String? _error;
   String _searchQuery = '';
 
   @override
-  void initState() {
-    super.initState();
-    _loadCollegeVisits();
-  }
-
-  Future<void> _loadCollegeVisits() async {
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final dashboardProvider = Provider.of<DashboardProvider>(
-        context,
-        listen: false,
-      );
-
-      if (authProvider.user != null && authProvider.user!.id != 'admin_001') {
-        // Load user-specific college visits
-        _collegeVisits = await FirebaseService.getUserCollegeVisits(
-          authProvider.user!.id,
-        );
-      } else {
-        // Load all college visits for admin
-        _collegeVisits = await FirebaseService.getCollegeVisits();
-      }
-
-      // Also refresh dashboard data to keep stats in sync
-      await dashboardProvider.refreshData();
-
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  List<Map<String, dynamic>> get _filteredCollegeVisits {
-    if (_searchQuery.isEmpty) return _collegeVisits;
-
-    return _collegeVisits.where((visit) {
-      final collegeName = visit['collegeName']?.toString().toLowerCase() ?? '';
-      final location = visit['location']?.toString().toLowerCase() ?? '';
-      final contactPerson =
-          visit['contactPerson']?.toString().toLowerCase() ?? '';
-      final purpose = visit['purpose']?.toString().toLowerCase() ?? '';
-
-      final query = _searchQuery.toLowerCase();
-      return collegeName.contains(query) ||
-          location.contains(query) ||
-          contactPerson.contains(query) ||
-          purpose.contains(query);
-    }).toList();
-  }
-
-  Future<void> _navigateToAddCollegeVisit() async {
-    final result = await Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => const AddCollegeVisitScreen()),
-    );
-
-    if (result == true) {
-      // Refresh the list if a new visit was added
-      _loadCollegeVisits();
-
-      // Also refresh dashboard data
-      final dashboardProvider = Provider.of<DashboardProvider>(
-        context,
-        listen: false,
-      );
-      await dashboardProvider.refreshData();
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final userId = authProvider.user?.id;
+    final isAdmin = userId == 'admin_001';
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _loadCollegeVisits,
-          child: Column(
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.all(AppSizes.paddingL),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'College Visits',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+        child: Column(
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(AppSizes.paddingL),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'College Visits',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Container(
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      onPressed: () => _navigateToAddCollegeVisit(context),
+                      icon: const Icon(
+                        Icons.add,
+                        color: AppColors.textInverse,
                       ),
                     ),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        onPressed: _navigateToAddCollegeVisit,
-                        icon: const Icon(
-                          Icons.add,
-                          color: AppColors.textInverse,
-                        ),
-                      ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Search
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSizes.paddingL,
+              ),
+              child: CustomSearchField(
+                hintText: 'Search colleges...',
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+              ),
+            ),
+
+            const SizedBox(height: AppSizes.paddingL),
+
+            // College Visits List
+            Expanded(
+              child: userId == null
+                  ? const Center(child: Text('User not logged in'))
+                  : StreamBuilder<QuerySnapshot>(
+                      stream: isAdmin
+                          ? FirebaseService.getCollegeVisitsStream()
+                          : FirebaseService.getUserCollegeVisitsStream(userId),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text('Error: ${snapshot.error}'),
+                                const SizedBox(height: 16),
+                                CustomButton(
+                                  onPressed: () => setState(() {}),
+                                  text: 'Retry',
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+
+                        final visits = snapshot.data?.docs ?? [];
+                        final filteredVisits = visits.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          if (_searchQuery.isEmpty) return true;
+
+                          final collegeName = data['collegeName']?.toString().toLowerCase() ?? '';
+                          final location = data['location']?.toString().toLowerCase() ?? '';
+                          final contactPerson = data['contactPerson']?.toString().toLowerCase() ?? '';
+                          final purpose = data['purpose']?.toString().toLowerCase() ?? '';
+
+                          final query = _searchQuery.toLowerCase();
+                          return collegeName.contains(query) ||
+                              location.contains(query) ||
+                              contactPerson.contains(query) ||
+                              purpose.contains(query);
+                        }).toList();
+
+                        if (filteredVisits.isEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.location_on_outlined,
+                                  size: 64,
+                                  color: AppColors.textSecondary,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _searchQuery.isEmpty
+                                      ? 'No college visits found'
+                                      : 'No college visits match your search',
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        return ListView.builder(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSizes.paddingL,
+                          ),
+                          itemCount: filteredVisits.length,
+                          itemBuilder: (context, index) {
+                            final doc = filteredVisits[index];
+                            final visit = {'id': doc.id, ...doc.data() as Map<String, dynamic>};
+                            return _buildCollegeVisitCard(context, visit);
+                          },
+                        );
+                      },
                     ),
-                  ],
-                ),
-              ),
-
-              // Search
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSizes.paddingL,
-                ),
-                child: CustomSearchField(
-                  hintText: 'Search colleges...',
-                  onChanged: (value) {
-                    setState(() {
-                      _searchQuery = value;
-                    });
-                  },
-                ),
-              ),
-
-              const SizedBox(height: AppSizes.paddingL),
-
-              // College Visits List
-              Expanded(
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _error != null
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text('Error: $_error'),
-                            const SizedBox(height: 16),
-                            CustomButton(
-                              onPressed: _loadCollegeVisits,
-                              text: 'Retry',
-                            ),
-                          ],
-                        ),
-                      )
-                    : _filteredCollegeVisits.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.location_on_outlined,
-                              size: 64,
-                              color: AppColors.textSecondary,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              _searchQuery.isEmpty
-                                  ? 'No college visits found'
-                                  : 'No college visits match your search',
-                              style: TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSizes.paddingL,
-                        ),
-                        itemCount: _filteredCollegeVisits.length,
-                        itemBuilder: (context, index) {
-                          final visit = _filteredCollegeVisits[index];
-                          return _buildCollegeVisitCard(visit);
-                        },
-                      ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildCollegeVisitCard(Map<String, dynamic> visit) {
+  Widget _buildCollegeVisitCard(BuildContext context, Map<String, dynamic> visit) {
     final collegeName = visit['collegeName'] ?? 'College Name';
     final location = visit['location'] ?? 'Location';
     final contactPerson = visit['contactPerson'] ?? 'Contact Person';
@@ -251,7 +197,7 @@ class _CollegeVisitScreenState extends State<CollegeVisitScreen> {
         borderRadius: BorderRadius.circular(AppSizes.radiusL),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -265,7 +211,7 @@ class _CollegeVisitScreenState extends State<CollegeVisitScreen> {
               Container(
                 padding: const EdgeInsets.all(AppSizes.paddingM),
                 decoration: BoxDecoration(
-                  color: _getStatusColor(status).withOpacity(0.1),
+                  color: _getStatusColor(status).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -301,7 +247,7 @@ class _CollegeVisitScreenState extends State<CollegeVisitScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _getStatusColor(status).withOpacity(0.1),
+                  color: _getStatusColor(status).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -480,10 +426,10 @@ class _CollegeVisitScreenState extends State<CollegeVisitScreen> {
                           ),
                         )
                         .then((result) {
-                          if (result == true) {
-                            _loadCollegeVisits();
-                          }
-                        });
+                      if (result == true) {
+                        // The StreamBuilder will handle the refresh automatically
+                      }
+                    });
                   },
                 ),
               ),
@@ -492,6 +438,21 @@ class _CollegeVisitScreenState extends State<CollegeVisitScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _navigateToAddCollegeVisit(BuildContext context) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => const AddCollegeVisitScreen()),
+    );
+
+    if (result == true) {
+      // The StreamBuilder will handle the refresh automatically
+      final dashboardProvider = Provider.of<DashboardProvider>(
+        context,
+        listen: false,
+      );
+      await dashboardProvider.refreshData();
+    }
   }
 
   String _formatDate(DateTime date) {

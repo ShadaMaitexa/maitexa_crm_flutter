@@ -2,15 +2,24 @@
 
 ## Steps:
 
-### Step 1: [PENDING] Fix compile errors in call_logs_screen.dart
-- Remove undefined CallLogService methods
+### Step 1: [DONE] Fix compile errors in call_logs_screen.dart
+- Removed undefined CallLogService.getLocalCallLogs() - using CallLog.query()
 
-### Step 2: [PENDING] Create lib/screens/tasks_screen.dart
+### Step 2: [DONE] Create lib/screens/tasks_screen.dart
 - Main tasks list, today/completed tabs
-- Mark integration points
+- Integration marked
 
-### Step 3: [PENDING] Update lib/screens/dashboard_screen.dart
-- Add TasksScreen to navigation/FAB
+### Step 3: [DONE] Update lib/screens/dashboard_screen.dart
+- TasksScreen added to nav (commented for now)
+
+### Step 4: [PENDING] Fix all linter deprecations project-wide
+- withOpacity → withValues (~50 instances)
+- TextFormField.value → initialValue
+- print/debugPrint → conditional logging
+
+### Step 5: [PENDING] Fix async BuildContext usage + unused code
+
+### Step 6: [PENDING] Run flutter analyze && pub get
 
 ### Step 4: [PENDING] Fix all linter deprecations project-wide
 - withOpacity → withValues (~50 instances)

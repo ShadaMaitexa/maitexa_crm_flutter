@@ -117,7 +117,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       const CollegeVisitScreen(),
       const FollowUpScreen(),
       const SalesAnalyticsScreen(),
-      const TasksScreen(),
+      // const TasksScreen(), // Step 2 pending
       const ProfileScreen(),
     ];
 

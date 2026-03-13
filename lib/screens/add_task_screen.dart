@@ -20,7 +20,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descController = TextEditingController();
-  
+
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
   bool _setReminder = true;
@@ -68,7 +68,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
 
   Future<void> _saveTask() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     if (_selectedDate == null || _selectedTime == null) {
       CustomSnackBar.showError(context, 'Please select both date and time.');
       return;
@@ -101,7 +101,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         userId: user?.id ?? '',
         reminderSet: _setReminder,
         // use timestamp as unique id for notification
-        notificationId: DateTime.now().millisecondsSinceEpoch.remainder(100000), 
+        notificationId: DateTime.now().millisecondsSinceEpoch.remainder(100000),
       );
 
       await taskProvider.addTask(task);
@@ -141,7 +141,8 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                   controller: _titleController,
                   labelText: 'Task Title',
                   prefixIcon: Icons.title,
-                  validator: (val) => val == null || val.isEmpty ? 'Required' : null,
+                  validator: (val) =>
+                      val == null || val.isEmpty ? 'Required' : null,
                 ),
                 const SizedBox(height: AppSizes.paddingL),
                 CustomTextField(
@@ -151,7 +152,10 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                   maxLines: 4,
                 ),
                 const SizedBox(height: AppSizes.paddingL),
-                const Text('Date & Time', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const Text(
+                  'Date & Time',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
                 const SizedBox(height: AppSizes.paddingM),
                 Row(
                   children: [
@@ -159,20 +163,29 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                       child: InkWell(
                         onTap: () => _selectDate(context),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 16,
+                            horizontal: 12,
+                          ),
                           decoration: BoxDecoration(
                             border: Border.all(color: Colors.grey.shade300),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.calendar_today, color: AppColors.primary, size: 20),
+                              const Icon(
+                                Icons.calendar_today,
+                                color: AppColors.primary,
+                                size: 20,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  _selectedDate == null 
-                                    ? 'Select Date' 
-                                    : DateFormat('MMM dd, yyyy').format(_selectedDate!),
+                                  _selectedDate == null
+                                      ? 'Select Date'
+                                      : DateFormat(
+                                          'MMM dd, yyyy',
+                                        ).format(_selectedDate!),
                                 ),
                               ),
                             ],
@@ -185,20 +198,27 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                       child: InkWell(
                         onTap: () => _selectTime(context),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 16,
+                            horizontal: 12,
+                          ),
                           decoration: BoxDecoration(
                             border: Border.all(color: Colors.grey.shade300),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.access_time, color: AppColors.primary, size: 20),
+                              const Icon(
+                                Icons.access_time,
+                                color: AppColors.primary,
+                                size: 20,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  _selectedTime == null 
-                                    ? 'Select Time' 
-                                    : _selectedTime!.format(context),
+                                  _selectedTime == null
+                                      ? 'Select Time'
+                                      : _selectedTime!.format(context),
                                 ),
                               ),
                             ],
@@ -212,7 +232,11 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                 SwitchListTile(
                   title: const Text('Remind me 15 minutes before'),
                   value: _setReminder,
-                  activeColor: AppColors.primary,
+                  thumbColor: MaterialStateProperty.resolveWith<Color?>(
+                    (states) => states.contains(MaterialState.selected)
+                        ? AppColors.primary
+                        : null,
+                  ),
                   onChanged: (value) {
                     setState(() {
                       _setReminder = value;

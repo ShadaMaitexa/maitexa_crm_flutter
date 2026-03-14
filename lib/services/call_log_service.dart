@@ -8,15 +8,14 @@ class CallLogService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   static Future<bool> requestPermissions() async {
-    var status = await Permission.phone.status;
-    if (!status.isGranted) {
-      status = await Permission.phone.request();
-    }
-    var logStatus = await Permission.contacts.status;
-    if (!logStatus.isGranted) {
-      logStatus = await Permission.contacts.request();
-    }
-    return status.isGranted || logStatus.isGranted;
+    // Request all necessary permissions for call tracking and SIM identification
+    // Note: Permission.phone covers READ_PHONE_STATE and related phone permissions
+    final statuses = await [
+      Permission.phone,
+      Permission.contacts,
+    ].request();
+
+    return statuses[Permission.phone]?.isGranted ?? false;
   }
 
   static Future<Iterable<CallLogEntry>> getLocalCallLogs() async {
@@ -25,14 +24,14 @@ class CallLogService {
 
   static String normalizeSimId(String? simId) {
     if (simId == null || simId.trim().isEmpty) return 'Unknown SIM';
+    
     final trimmed = simId.trim();
     if (trimmed == '0') return 'SIM 1';
     if (trimmed == '1') return 'SIM 2';
-    if (trimmed == '2') return 'SIM 3';
     
-    final upper = trimmed.toUpperCase().replaceAll(' ', '');
-    if (upper == 'SIM1') return 'SIM 1';
-    if (upper == 'SIM2') return 'SIM 2';
+    final lower = trimmed.toLowerCase().replaceAll(' ', '');
+    if (lower.contains('sim0') || lower.contains('sim1')) return 'SIM 1';
+    if (lower.contains('sim2')) return 'SIM 2';
     
     return trimmed;
   }

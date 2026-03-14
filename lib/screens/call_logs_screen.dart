@@ -95,10 +95,10 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
       return;
     }
 
-    // Identify unique phone accounts to accurately map SIM 1 and SIM 2
-    List<String> uniqueUuids = _allCallLogs
-        .map((log) => log.phoneAccountId ?? '')
-        .where((id) => id.trim().isNotEmpty && id != '0' && id != '1' && !id.toLowerCase().contains('sim'))
+    // Find all valid account IDs natively presented by this specific device
+    List<String> validIds = _allCallLogs
+        .map((log) => log.phoneAccountId?.trim() ?? '')
+        .where((id) => id.isNotEmpty && !id.toLowerCase().contains('sim'))
         .toSet()
         .toList()
         ..sort();
@@ -113,32 +113,26 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
       String accountId = log.phoneAccountId?.trim() ?? '';
       String logSim = log.simDisplayName?.toLowerCase().trim() ?? '';
 
-      // If no SIM info is present at all, assume SIM 1 (common for older devices or single SIM)
-      if (accountId.isEmpty && logSim.isEmpty) {
+      // If no ID is available on the device, try to infer from simDisplayName
+      if (accountId.isEmpty) {
+        if (logSim.contains('2') || logSim.contains('sim2')) {
+          return _selectedSimFilter == 'SIM 2';
+        }
         return _selectedSimFilter == 'SIM 1';
       }
 
-      // Heuristic 1: Explicit account IDs or display names
-      if (_selectedSimFilter == 'SIM 1') {
-        if (accountId == '0' || accountId.toLowerCase().contains('sim1') || accountId.toLowerCase().contains('sim 1') ||
-            logSim.contains('sim 1') || logSim.contains('sim1') || logSim == 'sim 1' || logSim == 'sim 0') {
-          return true;
-        }
-      } else if (_selectedSimFilter == 'SIM 2') {
-        if (accountId == '1' || accountId.toLowerCase().contains('sim2') || accountId.toLowerCase().contains('sim 2') ||
-            logSim.contains('sim 2') || logSim.contains('sim2') || logSim == 'sim 2' || logSim == 'sim 1') {
-          return true;
-        }
-      }
+      // Explicit string matches bypass the indexing
+      bool isExplicitSim1 = accountId.toLowerCase().contains('sim1') || accountId.toLowerCase().contains('sim 0') || logSim == 'sim 1';
+      bool isExplicitSim2 = accountId.toLowerCase().contains('sim2') || logSim == 'sim 2';
 
-      // Heuristic 2: Uniqueness sorting for complex account IDs like ICCID or UUID
-      if (uniqueUuids.isNotEmpty && uniqueUuids.contains(accountId)) {
-        if (_selectedSimFilter == 'SIM 1' && accountId == uniqueUuids.first) {
-          return true;
-        }
-        if (_selectedSimFilter == 'SIM 2' && uniqueUuids.length > 1 && accountId == uniqueUuids[1]) {
-          return true;
-        }
+      if (_selectedSimFilter == 'SIM 1') {
+        if (isExplicitSim1) return true;
+        if (isExplicitSim2) return false;
+        return validIds.indexOf(accountId) == 0;
+      } else if (_selectedSimFilter == 'SIM 2') {
+        if (isExplicitSim2) return true;
+        if (isExplicitSim1) return false;
+        return validIds.indexOf(accountId) > 0;
       }
 
       return false;

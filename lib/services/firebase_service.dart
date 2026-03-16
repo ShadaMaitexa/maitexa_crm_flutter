@@ -20,6 +20,7 @@ class FirebaseService {
   static const String labelsCollection = 'labels';
   static const String leadNotesCollection = 'lead_notes';
   static const String leadActivitiesCollection = 'lead_activities';
+  static const String phoneNotesCollection = 'phone_notes';
 
   // Hardcoded admin credentials
   static const String adminEmail = 'admin@acadeno.com';
@@ -959,6 +960,22 @@ class FirebaseService {
   static Future<void> addNote(String leadId, String note) async {
     await _firestore.collection(leadNotesCollection).add({
       'lead_id': leadId,
+      'note': note,
+      'created_at': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // Phone Note Management (for call logs without a lead)
+  static Stream<QuerySnapshot> getPhoneNotesStream(String phoneNumber) {
+    return _firestore
+        .collection(phoneNotesCollection)
+        .where('phone', isEqualTo: phoneNumber)
+        .snapshots();
+  }
+
+  static Future<void> addPhoneNote(String phoneNumber, String note) async {
+    await _firestore.collection(phoneNotesCollection).add({
+      'phone': phoneNumber,
       'note': note,
       'created_at': FieldValue.serverTimestamp(),
     });

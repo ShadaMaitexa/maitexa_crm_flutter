@@ -25,6 +25,7 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
   final TextEditingController _noteController = TextEditingController();
   String? _selectedLabel;
   bool _isSaving = false;
+  bool _isSavingNote = false;
 
   // Default labels (same as in todays_calls_screen.dart)
   final List<String> _defaultLabels = [
@@ -145,16 +146,43 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
       return;
     }
 
-    // For call logs without leadId, we store notes in a separate collection
-    // or we could create a lead from the call
-    // For now, show a message
-    if (mounted) {
+    if (widget.callEntry.number == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Note: Create a lead first to save notes'),
-          backgroundColor: AppColors.warning,
+          content: Text('Cannot save note: phone number is unavailable'),
+          backgroundColor: AppColors.error,
         ),
       );
+      return;
+    }
+
+    setState(() => _isSavingNote = true);
+
+    try {
+      await FirebaseService.addPhoneNote(
+        widget.callEntry.number!,
+        _noteController.text.trim(),
+      );
+      _noteController.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Note saved successfully'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving note: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSavingNote = false);
     }
   }
 
@@ -407,8 +435,101 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
-              child: CustomButton(onPressed: _saveNote, text: 'Save Note'),
+              child: CustomButton(
+                onPressed: _isSavingNote ? null : _saveNote,
+                text: _isSavingNote ? 'Saving...' : 'Save Note',
+                isLoading: _isSavingNote,
+              ),
             ),
+
+            const SizedBox(height: 16),
+
+            // Saved Notes List
+            if (widget.callEntry.number != null)
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseService.getPhoneNotesStream(
+                  widget.callEntry.number!,
+                ),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  final docs = List.from(snapshot.data!.docs)
+                    ..sort((a, b) {
+                      final aTs = (a.data()
+                          as Map<String, dynamic>)['created_at'] as Timestamp?;
+                      final bTs = (b.data()
+                          as Map<String, dynamic>)['created_at'] as Timestamp?;
+                      if (aTs == null && bTs == null) return 0;
+                      if (aTs == null) return 1;
+                      if (bTs == null) return -1;
+                      return bTs.compareTo(aTs); // newest first
+                    });
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Saved Notes',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...docs.map((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final noteText = data['note'] as String? ?? '';
+                        final createdAt =
+                            (data['created_at'] as Timestamp?)?.toDate();
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            side: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.note_alt_outlined,
+                                      size: 16,
+                                      color: AppColors.primary,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        noteText,
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (createdAt != null) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    DateFormat('MMM d, yyyy h:mm a').format(
+                                      createdAt,
+                                    ),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  );
+                },
+              ),
 
             const SizedBox(height: 24),
 

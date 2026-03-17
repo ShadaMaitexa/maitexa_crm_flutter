@@ -22,7 +22,7 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  DateTime _startDate = DateTime.now().subtract(const Duration(days: 6));
+  DateTime _startDate = DateTime.now().subtract(const Duration(days: 30));
   DateTime _endDate = DateTime.now();
   String? _selectedUserId;
 
@@ -62,11 +62,15 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
         _fetchNumberCategories(),
         _fetchPhoneNotes(),
         _fetchLeadNotes(),
+        _fetchEnquiries(),
       ]);
 
       setState(() {
         _allCalls = results[0] as List<Map<String, dynamic>>;
-        _allLeads = results[1] as List<Map<String, dynamic>>;
+        final leads = results[1] as List<Map<String, dynamic>>;
+        final enquiries = results[7] as List<Map<String, dynamic>>;
+        _allLeads = [...leads, ...enquiries];
+
         _allUsers = (results[2] as List).map((u) {
           final user = u as dynamic;
           return {'id': user.id as String, 'name': user.name as String};
@@ -98,6 +102,13 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
   Future<List<Map<String, dynamic>>> _fetchLeads() async {
     final snap = await FirebaseService.firestore
         .collection(FirebaseService.leadsCollection)
+        .get();
+    return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchEnquiries() async {
+    final snap = await FirebaseService.firestore
+        .collection(FirebaseService.enquiriesCollection)
         .get();
     return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
   }
@@ -155,27 +166,29 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
   }
 
   List<Map<String, dynamic>> get _filteredCalls => _allCalls.where((c) {
-        final range = _inRange(_tsToDate(c['timestamp']));
+        final dateObj = c['timestamp'] ?? c['created_at'] ?? c['createdAt'];
+        final range = _inRange(_tsToDate(dateObj));
         if (!range) return false;
         if (_selectedUserId != null) {
-          final uid = (c['userId'] ?? c['user_id'] ?? '').toString();
+          final uid = (c['userId'] ?? c['user_id'] ?? c['createdBy'] ?? '').toString();
           return uid == _selectedUserId;
         }
         return true;
       }).toList();
 
   List<Map<String, dynamic>> get _filteredLeads => _allLeads.where((l) {
-        final range = _inRange(_tsToDate(l['created_at']));
+        final dateObj = l['created_at'] ?? l['createdAt'] ?? l['timestamp'];
+        final range = _inRange(_tsToDate(dateObj));
         if (!range) return false;
         if (_selectedUserId != null) {
-          final uid = (l['createdBy'] ?? l['user_id'] ?? '').toString();
+          final uid = (l['createdBy'] ?? l['user_id'] ?? l['userId'] ?? '').toString();
           return uid == _selectedUserId;
         }
         return true;
       }).toList();
 
   List<Map<String, dynamic>> get _filteredFollowUps => _allFollowUps.where((f) {
-        final dt = _tsToDate(f['followUpDate'] ?? f['created_at'] ?? f['createdAt']);
+        final dt = _tsToDate(f['followUpDate'] ?? f['created_at'] ?? f['createdAt'] ?? f['timestamp']);
         final range = _inRange(dt);
         if (!range) return false;
         if (_selectedUserId != null) {
@@ -256,12 +269,11 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
   // ── build ─────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F4FF),
-      appBar: _buildAppBar(),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
+
+    return Container(
+      color: const Color(0xFFF0F4FF),
+      child: Column(
               children: [
                 _buildDateFilter(),
                 _buildTabBar(),
@@ -310,25 +322,6 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
                 ),
               ],
             ),
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      backgroundColor: AppColors.primary,
-      foregroundColor: Colors.white,
-      elevation: 0,
-      title: const Text(
-        'Analytics Dashboard',
-        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
-      ),
-      actions: [
-        IconButton(
-          onPressed: _loadAll,
-          icon: const Icon(Icons.refresh),
-          tooltip: 'Refresh',
-        ),
-      ],
     );
   }
 

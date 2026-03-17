@@ -214,14 +214,14 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
+
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
 
-    return Scaffold(
-     
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
+    return Container(
+      color: AppColors.background,
+      child: _error != null
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,

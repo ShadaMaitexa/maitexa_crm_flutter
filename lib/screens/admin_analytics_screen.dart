@@ -7,7 +7,7 @@ import '../services/firebase_service.dart';
 // ─────────────────────────────────────────────────────────────
 //  Admin Analytics Screen
 //  Shows: call analytics per day, leads with label/followup,
-//         hot leads, converted leads, per-user breakdowns,
+//         Hot Deals, converted leads, per-user breakdowns,
 //         date-range filter.
 // ─────────────────────────────────────────────────────────────
 
@@ -24,6 +24,7 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
 
   DateTime _startDate = DateTime.now().subtract(const Duration(days: 6));
   DateTime _endDate = DateTime.now();
+  String? _selectedUserId;
 
   bool _isLoading = true;
 
@@ -32,6 +33,8 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
   List<Map<String, dynamic>> _allLeads = [];
   List<Map<String, dynamic>> _allUsers = [];
   List<Map<String, dynamic>> _allFollowUps = [];
+  List<Map<String, dynamic>> _allPhoneNotes = [];
+  List<Map<String, dynamic>> _allLeadNotes = [];
   Map<String, String> _numberCategories = {};
 
   @override
@@ -57,6 +60,8 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
         FirebaseService.getAllUsers(),
         _fetchFollowUps(),
         _fetchNumberCategories(),
+        _fetchPhoneNotes(),
+        _fetchLeadNotes(),
       ]);
 
       setState(() {
@@ -68,6 +73,8 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
         }).toList();
         _allFollowUps = results[3] as List<Map<String, dynamic>>;
         _numberCategories = results[4] as Map<String, String>;
+        _allPhoneNotes = results[5] as List<Map<String, dynamic>>;
+        _allLeadNotes = results[6] as List<Map<String, dynamic>>;
         _isLoading = false;
       });
     } catch (e) {
@@ -98,6 +105,20 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
   Future<List<Map<String, dynamic>>> _fetchFollowUps() async {
     final snap = await FirebaseService.firestore
         .collection(FirebaseService.followUpsCollection)
+        .get();
+    return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchPhoneNotes() async {
+    final snap = await FirebaseService.firestore
+        .collection(FirebaseService.phoneNotesCollection)
+        .get();
+    return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchLeadNotes() async {
+    final snap = await FirebaseService.firestore
+        .collection(FirebaseService.leadNotesCollection)
         .get();
     return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
   }
@@ -133,20 +154,36 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
         dt.isBefore(end.add(const Duration(seconds: 1)));
   }
 
-  List<Map<String, dynamic>> get _filteredCalls => _allCalls
-      .where((c) => _inRange(_tsToDate(c['timestamp'])))
-      .toList();
+  List<Map<String, dynamic>> get _filteredCalls => _allCalls.where((c) {
+        final range = _inRange(_tsToDate(c['timestamp']));
+        if (!range) return false;
+        if (_selectedUserId != null) {
+          final uid = (c['userId'] ?? c['user_id'] ?? '').toString();
+          return uid == _selectedUserId;
+        }
+        return true;
+      }).toList();
 
-  List<Map<String, dynamic>> get _filteredLeads => _allLeads
-      .where((l) => _inRange(_tsToDate(l['created_at'])))
-      .toList();
+  List<Map<String, dynamic>> get _filteredLeads => _allLeads.where((l) {
+        final range = _inRange(_tsToDate(l['created_at']));
+        if (!range) return false;
+        if (_selectedUserId != null) {
+          final uid = (l['createdBy'] ?? l['user_id'] ?? '').toString();
+          return uid == _selectedUserId;
+        }
+        return true;
+      }).toList();
 
-  List<Map<String, dynamic>> get _filteredFollowUps => _allFollowUps
-      .where((f) {
+  List<Map<String, dynamic>> get _filteredFollowUps => _allFollowUps.where((f) {
         final dt = _tsToDate(f['followUpDate'] ?? f['created_at'] ?? f['createdAt']);
-        return _inRange(dt);
-      })
-      .toList();
+        final range = _inRange(dt);
+        if (!range) return false;
+        if (_selectedUserId != null) {
+          final uid = (f['createdBy'] ?? f['userId'] ?? '').toString();
+          return uid == _selectedUserId;
+        }
+        return true;
+      }).toList();
 
   // group calls by day
   Map<String, List<Map<String, dynamic>>> _groupByDay(
@@ -173,7 +210,7 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
     return (l['label'] ?? l['category'] ?? _numberCategories[l['phone'] ?? ''] ?? '').toString();
   }
 
-  bool _isHotLead(Map l) =>
+  bool _isHotDeal(Map l) =>
       _leadLabel(l).toLowerCase().contains('hot');
 
   bool _isConverted(Map l) =>
@@ -234,28 +271,33 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
                     children: [
                       _CallsTab(
                           calls: _filteredCalls,
+                          phoneNotes: _allPhoneNotes,
+                          leadNotes: _allLeadNotes,
                           groupByDay: _groupByDay,
                           callType: _callType,
-                          isHotLead: _isHotLead,
+                          isHotDeal: _isHotDeal,
+                          findUserName: _findUserName,
                           numberCategories: _numberCategories),
                       _LeadsTab(
                           leads: _filteredLeads,
                           labelFn: _leadLabel,
-                          isHot: _isHotLead,
+                          isHot: _isHotDeal,
                           isConverted: _isConverted,
                           isFollowUp: _isFollowUp,
-                          tsToDate: _tsToDate),
-                      _HotLeadsTab(
-                          leads: _allLeads,
+                          tsToDate: _tsToDate,
+                          findUserName: _findUserName),
+                      _HotDealsTab(
+                          leads: _filteredLeads,
                           labelFn: _leadLabel,
-                          isHot: _isHotLead,
-                          tsToDate: _tsToDate),
+                          isHot: _isHotDeal,
+                          tsToDate: _tsToDate,
+                          findUserName: _findUserName),
                       _UserStatsTab(
                           calls: _filteredCalls,
                           leads: _filteredLeads,
                           users: _allUsers,
                           callType: _callType,
-                          isHot: _isHotLead,
+                          isHot: _isHotDeal,
                           isConverted: _isConverted,
                           findUserName: _findUserName),
                       _FollowUpsTab(
@@ -294,28 +336,69 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
     return Container(
       color: AppColors.primary,
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: GestureDetector(
-        onTap: _pickDateRange,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.4)),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.date_range, color: Colors.white, size: 20),
-              const SizedBox(width: 10),
-              Text(
-                '${DateFormat('MMM d').format(_startDate)} – ${DateFormat('MMM d, yyyy').format(_endDate)}',
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w600),
+      child: Column(
+        children: [
+          _buildUserDropdown(),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: _pickDateRange,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withOpacity(0.4)),
               ),
-              const Spacer(),
-              const Icon(Icons.expand_more, color: Colors.white),
-            ],
+              child: Row(
+                children: [
+                  const Icon(Icons.date_range, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Text(
+                    '${DateFormat('MMM d').format(_startDate)} – ${DateFormat('MMM d, yyyy').format(_endDate)}',
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w600),
+                  ),
+                  const Spacer(),
+                  const Icon(Icons.expand_more, color: Colors.white),
+                ],
+              ),
+            ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.4)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String?>(
+          value: _selectedUserId,
+          dropdownColor: AppColors.primary,
+          icon: const Icon(Icons.person_search, color: Colors.white),
+          isExpanded: true,
+          hint: const Text('Filter by Person (All)',
+              style: TextStyle(color: Colors.white70, fontSize: 13)),
+          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+          items: [
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('All Users / Persons'),
+            ),
+            ..._allUsers.map((u) => DropdownMenuItem<String?>(
+                  value: u['id'].toString(),
+                  child: Text(u['name'].toString()),
+                )),
+          ],
+          onChanged: (val) {
+            setState(() => _selectedUserId = val);
+          },
         ),
       ),
     );
@@ -349,17 +432,23 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
 // ─────────────────────────────────────────────────────────────
 class _CallsTab extends StatelessWidget {
   final List<Map<String, dynamic>> calls;
+  final List<Map<String, dynamic>> phoneNotes;
+  final List<Map<String, dynamic>> leadNotes;
   final Map<String, List<Map<String, dynamic>>> Function(
       List<Map<String, dynamic>>, String) groupByDay;
   final String Function(Map) callType;
-  final bool Function(Map) isHotLead;
+  final bool Function(Map) isHotDeal;
+  final String Function(String?) findUserName;
   final Map<String, String> numberCategories;
 
   const _CallsTab({
     required this.calls,
+    required this.phoneNotes,
+    required this.leadNotes,
     required this.groupByDay,
     required this.callType,
-    required this.isHotLead,
+    required this.isHotDeal,
+    required this.findUserName,
     required this.numberCategories,
   });
 
@@ -409,7 +498,7 @@ class _CallsTab extends StatelessWidget {
                 Icons.call_made, AppColors.info),
             _SummaryCard('Missed', '$totalMissed',
                 Icons.call_missed, AppColors.error),
-            _SummaryCard('Hot Lead Calls', '$totalHot',
+            _SummaryCard('Hot Deals Calls', '$totalHot',
                 Icons.local_fire_department, Colors.orange),
             _SummaryCard('Days', '${sortedDays.length}',
                 Icons.calendar_today, Colors.purple),
@@ -430,11 +519,16 @@ class _CallsTab extends StatelessWidget {
 
           return _DayCallCard(
             date: dt,
+            items: dayItems,
+            phoneNotes: phoneNotes,
+            leadNotes: leadNotes,
+            callType: callType,
+            findUserName: findUserName,
             total: dayItems.length,
             incoming: inc,
             outgoing: out,
             missed: mis,
-            hotLeads: hot,
+            HotDeals: hot,
           );
         }),
       ],
@@ -444,15 +538,25 @@ class _CallsTab extends StatelessWidget {
 
 class _DayCallCard extends StatefulWidget {
   final DateTime date;
-  final int total, incoming, outgoing, missed, hotLeads;
+  final List<Map<String, dynamic>> items;
+  final List<Map<String, dynamic>> phoneNotes;
+  final List<Map<String, dynamic>> leadNotes;
+  final String Function(Map) callType;
+  final String Function(String?) findUserName;
+  final int total, incoming, outgoing, missed, HotDeals;
 
   const _DayCallCard({
     required this.date,
+    required this.items,
+    required this.phoneNotes,
+    required this.leadNotes,
+    required this.callType,
+    required this.findUserName,
     required this.total,
     required this.incoming,
     required this.outgoing,
     required this.missed,
-    required this.hotLeads,
+    required this.HotDeals,
   });
 
   @override
@@ -581,6 +685,7 @@ class _DayCallCardState extends State<_DayCallCard> {
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Divider(),
                   Row(
@@ -592,7 +697,7 @@ class _DayCallCardState extends State<_DayCallCard> {
                       _StatPill('Missed', widget.missed, AppColors.error),
                     ],
                   ),
-                  if (widget.hotLeads > 0) ...[
+                  if (widget.HotDeals > 0) ...[
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -610,7 +715,7 @@ class _DayCallCardState extends State<_DayCallCard> {
                               color: Colors.orange, size: 16),
                           const SizedBox(width: 6),
                           Text(
-                            '${widget.hotLeads} Hot Lead Call${widget.hotLeads > 1 ? 's' : ''}',
+                            '${widget.HotDeals} Hot Deals Call${widget.HotDeals > 1 ? 's' : ''}',
                             style: const TextStyle(
                               color: Colors.orange,
                               fontWeight: FontWeight.bold,
@@ -621,6 +726,118 @@ class _DayCallCardState extends State<_DayCallCard> {
                       ),
                     ),
                   ],
+                  const SizedBox(height: 16),
+                  const Text('Call Logs:',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: AppColors.textSecondary)),
+                  const SizedBox(height: 8),
+                  ...widget.items.map((call) {
+                    final type = widget.callType(call);
+                    final number = (call['number'] ?? 'No Number').toString();
+                    final name = call['name'] ?? 'Unknown';
+                    final user = widget.findUserName(
+                        (call['userId'] ?? call['user_id'])?.toString());
+                    final callTs = call['timestamp'];
+                    final time = callTs != null
+                        ? DateFormat('h:mm a').format(
+                            callTs is Timestamp
+                                ? callTs.toDate()
+                                : (callTs is int
+                                    ? DateTime.fromMillisecondsSinceEpoch(callTs)
+                                    : DateTime.now()))
+                        : '--:--';
+
+                    // Find notes for this number around this call time
+                    final matchingPhoneNotes = widget.phoneNotes.where((n) =>
+                        n['phone'] == number).toList();
+                    
+                    // Since specific call-to-note linking is weak, we just show 
+                    // latest notes for that number or filter by day
+                    final dayStart = DateTime(widget.date.year, widget.date.month, widget.date.day);
+                    final dayEnd = dayStart.add(const Duration(days: 1));
+
+                    final notesOnThisDay = matchingPhoneNotes.where((n) {
+                      final nTs = n['created_at'];
+                      if (nTs == null) return false;
+                      final nDate = (nTs is Timestamp) ? nTs.toDate() : null;
+                      if (nDate == null) return false;
+                      return nDate.isAfter(dayStart) && nDate.isBefore(dayEnd);
+                    }).toList();
+
+                    Color typeColor = Colors.grey;
+                    IconData typeIcon = Icons.call;
+                    if (type == 'Incoming') {
+                      typeColor = Colors.green;
+                      typeIcon = Icons.call_received;
+                    } else if (type == 'Outgoing') {
+                      typeColor = AppColors.primary;
+                      typeIcon = Icons.call_made;
+                    } else if (type == 'Missed') {
+                      typeColor = AppColors.error;
+                      typeIcon = Icons.call_missed;
+                    }
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(typeIcon, color: typeColor, size: 16),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('$name ($number)',
+                                        style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold)),
+                                    Text('By: $user • $time',
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            color: AppColors.textSecondary)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (notesOnThisDay.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            const Divider(height: 1),
+                            const SizedBox(height: 8),
+                            ...notesOnThisDay.map((n) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Icon(Icons.note,
+                                          size: 12, color: Colors.orange),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          n['note'] ?? '',
+                                          style: const TextStyle(
+                                              fontSize: 12,
+                                              fontStyle: FontStyle.italic),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )),
+                          ],
+                        ],
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -640,6 +857,7 @@ class _LeadsTab extends StatefulWidget {
   final bool Function(Map) isConverted;
   final bool Function(Map) isFollowUp;
   final DateTime? Function(dynamic) tsToDate;
+  final String Function(String?) findUserName;
 
   const _LeadsTab({
     required this.leads,
@@ -648,6 +866,7 @@ class _LeadsTab extends StatefulWidget {
     required this.isConverted,
     required this.isFollowUp,
     required this.tsToDate,
+    required this.findUserName,
   });
 
   @override
@@ -656,12 +875,12 @@ class _LeadsTab extends StatefulWidget {
 
 class _LeadsTabState extends State<_LeadsTab> {
   String _filter = 'All';
-  final _filters = ['All', 'Hot Lead', 'Follow Up', 'Converted'];
+  final _filters = ['All', 'Hot Deals', 'Follow Up', 'Converted'];
 
   List<Map<String, dynamic>> get _filtered {
     return widget.leads.where((l) {
       switch (_filter) {
-        case 'Hot Lead':
+        case 'Hot Deals':
           return widget.isHot(l);
         case 'Follow Up':
           return widget.isFollowUp(l);
@@ -771,6 +990,8 @@ class _LeadsTabState extends State<_LeadsTab> {
                       isConverted: widget.isConverted(lead),
                       isFollowUp: widget.isFollowUp(lead),
                       date: widget.tsToDate(lead['created_at']),
+                      userName: widget.findUserName(
+                          (lead['createdBy'] ?? lead['user_id'])?.toString()),
                     );
                   },
                 ),
@@ -781,19 +1002,21 @@ class _LeadsTabState extends State<_LeadsTab> {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  HOT LEADS TAB
+//  Hot Deals TAB
 // ─────────────────────────────────────────────────────────────
-class _HotLeadsTab extends StatelessWidget {
+class _HotDealsTab extends StatelessWidget {
   final List<Map<String, dynamic>> leads;
   final String Function(Map) labelFn;
   final bool Function(Map) isHot;
   final DateTime? Function(dynamic) tsToDate;
+  final String Function(String?) findUserName;
 
-  const _HotLeadsTab({
+  const _HotDealsTab({
     required this.leads,
     required this.labelFn,
     required this.isHot,
     required this.tsToDate,
+    required this.findUserName,
   });
 
   @override
@@ -809,7 +1032,7 @@ class _HotLeadsTab extends StatelessWidget {
       });
 
     if (hotLeads.isEmpty) {
-      return _empty('No hot leads found');
+      return _empty('No Hot Deals found');
     }
 
     return ListView(
@@ -832,7 +1055,7 @@ class _HotLeadsTab extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Hot Leads',
+                  const Text('Hot Deals',
                       style: TextStyle(
                           color: Colors.white,
                           fontSize: 20,
@@ -857,6 +1080,8 @@ class _HotLeadsTab extends StatelessWidget {
                   .contains('convert'),
               isFollowUp: labelFn(lead).toLowerCase().contains('follow'),
               date: tsToDate(lead['created_at']),
+              userName: findUserName(
+                  (lead['createdBy'] ?? lead['user_id'])?.toString()),
             )),
       ],
     );
@@ -905,7 +1130,7 @@ class _UserStatsTab extends StatelessWidget {
           lead['createdBy']?.toString() ?? lead['user_id']?.toString() ?? '';
       userStats.putIfAbsent(uid, () => _UserStat(uid, findUserName(uid)));
       userStats[uid]!.leads++;
-      if (isHot(lead)) userStats[uid]!.hotLeads++;
+      if (isHot(lead)) userStats[uid]!.HotDeals++;
       if (isConverted(lead)) userStats[uid]!.converted++;
     }
 
@@ -941,7 +1166,7 @@ class _UserStat {
   int outgoing = 0;
   int missed = 0;
   int leads = 0;
-  int hotLeads = 0;
+  int HotDeals = 0;
   int converted = 0;
 
   _UserStat(this.uid, this.name);
@@ -1008,7 +1233,7 @@ class _UserStatCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(child: _GridStat('Leads', '${stat.leads}', Colors.indigo)),
-                Expanded(child: _GridStat('Hot', '${stat.hotLeads}', Colors.orange)),
+                Expanded(child: _GridStat('Hot', '${stat.HotDeals}', Colors.orange)),
                 Expanded(child: _GridStat('Converted', '${stat.converted}', AppColors.success)),
               ],
             ),
@@ -1029,6 +1254,7 @@ class _LeadCard extends StatelessWidget {
   final bool isConverted;
   final bool isFollowUp;
   final DateTime? date;
+  final String userName;
 
   const _LeadCard({
     required this.lead,
@@ -1037,6 +1263,7 @@ class _LeadCard extends StatelessWidget {
     required this.isConverted,
     required this.isFollowUp,
     required this.date,
+    required this.userName,
   });
 
   @override
@@ -1115,6 +1342,8 @@ class _LeadCard extends StatelessWidget {
                 if (label.isNotEmpty) _Tag(label, statusColor),
                 if (status.isNotEmpty) _Tag(status, AppColors.textSecondary),
                 if (source.isNotEmpty) _Tag(source, AppColors.info),
+                if (userName.isNotEmpty && userName != 'Unknown')
+                  _Tag(userName, AppColors.primary, icon: Icons.person),
                 if (date != null)
                   _Tag(
                     DateFormat('MMM d, yyyy').format(date!),

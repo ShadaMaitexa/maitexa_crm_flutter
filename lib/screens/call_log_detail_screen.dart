@@ -32,7 +32,7 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
     'Devagiri College',
     'St Joseph College',
     'Providence College',
-    'Hot Lead',
+    'Hot Deals',
     'Follow Up',
     'Unknown',
   ];

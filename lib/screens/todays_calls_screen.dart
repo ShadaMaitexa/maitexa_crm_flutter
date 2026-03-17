@@ -154,6 +154,7 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
       'All Calls',
       'Missed Calls',
       'New Leads',
+      'Hot Deals',
       'Follow Ups',
       'Converted',
     ];
@@ -188,6 +189,8 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
     if (filter == 'All Calls') return calls;
     if (filter == 'Missed Calls')
       return calls.where((c) => c.callType == 'missed').toList();
+    if (filter == 'Hot Deals')
+      return calls.where((c) => c.label == 'Hot Deals').toList();
     // For other filters like 'New Leads', we would need to fetch lead data,
     // but for simplicity in this stream, we just filter by call type or keep all.
     // In a real app, you might use a more complex query or multiple streams.
@@ -395,7 +398,7 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
                 'Devagiri College',
                 'St Joseph College',
                 'Providence College',
-                'Hot Lead',
+                'Hot Deals',
                 'Follow Up',
                 'Unknown',
               ];

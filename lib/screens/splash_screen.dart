@@ -4,6 +4,7 @@ import '../providers/auth_provider.dart';
 import '../constants/app_constants.dart';
 import 'login_screen.dart';
 import 'dashboard_screen.dart';
+import 'admin_dashboard_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -54,7 +55,7 @@ class _SplashScreenState extends State<SplashScreen>
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) =>
                 authProvider.isAuthenticated
-                ? const DashboardScreen()
+                ? (authProvider.isAdmin() ? const AdminDashboardScreen() : const DashboardScreen())
                 : const LoginScreen(),
             transitionsBuilder:
                 (context, animation, secondaryAnimation, child) {

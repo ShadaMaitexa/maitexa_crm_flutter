@@ -863,7 +863,7 @@ class FirebaseService {
           'St Joseph College',
           'Providence College',
           'Unknown',
-          'Hot Lead',
+          'Hot Deals',
           'Follow Up',
         ];
         for (var label in defaultLabels) {

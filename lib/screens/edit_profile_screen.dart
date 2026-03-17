@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -25,7 +27,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _phoneController = TextEditingController();
   final _organizationController = TextEditingController();
 
-  File? _selectedImage;
+  XFile? _selectedFile;
+  Uint8List? _webImage;
   String? _imageUrl;
   bool _isLoading = false;
   bool _isUploadingImage = false;
@@ -78,10 +81,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
 
       if (image != null) {
-        setState(() {
-          _selectedImage = File(image.path);
-          _isUploadingImage = true;
-        });
+        if (kIsWeb) {
+          final bytes = await image.readAsBytes();
+          setState(() {
+            _selectedFile = image;
+            _webImage = bytes;
+            _isUploadingImage = true;
+          });
+        } else {
+          setState(() {
+            _selectedFile = image;
+            _isUploadingImage = true;
+          });
+        }
 
         // Upload to Cloudinary
         await _uploadImageToCloudinary();
@@ -96,11 +108,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _uploadImageToCloudinary() async {
     try {
-      if (_selectedImage == null) return;
+      if (_selectedFile == null) return;
 
       final response = await cloudinary.upload(
-        file: _selectedImage!.path,
-        fileBytes: await _selectedImage!.readAsBytes(),
+        file: _selectedFile!.path,
+        fileBytes: await _selectedFile!.readAsBytes(),
         resourceType: CloudinaryResourceType.image,
         folder: 'crm_images',
         fileName: 'profile_${DateTime.now().millisecondsSinceEpoch}',
@@ -238,10 +250,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                     child: CircularProgressIndicator(),
                                   ),
                                 )
-                              : _selectedImage != null
-                              ? Image.file(_selectedImage!, fit: BoxFit.cover)
-                              : _imageUrl != null && _imageUrl!.isNotEmpty
-                              ? Image.network(
+                              : _selectedFile != null
+                                  ? (kIsWeb
+                                      ? Image.memory(_webImage!, fit: BoxFit.cover)
+                                      : Image.file(File(_selectedFile!.path),
+                                          fit: BoxFit.cover))
+                                  : _imageUrl != null && _imageUrl!.isNotEmpty
+                                      ? Image.network(
                                   _imageUrl!,
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) {

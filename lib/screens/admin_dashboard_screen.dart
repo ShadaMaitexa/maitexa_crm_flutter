@@ -11,6 +11,7 @@ import '../screens/splash_screen.dart';
 import '../screens/role_management_screen.dart';
 import '../utils/validation_utils.dart';
 import 'call_logs_screen.dart';
+import 'admin_analytics_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -532,6 +533,40 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  void _showAdminCredentials() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.admin_panel_settings, color: AppColors.primary),
+            SizedBox(width: 10),
+            Text('Admin Credentials'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Use these credentials to log in as admin:',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            const SizedBox(height: 16),
+            _CredentialRow(label: 'Email', value: FirebaseService.adminEmail),
+            const SizedBox(height: 8),
+            _CredentialRow(label: 'Password', value: FirebaseService.adminPassword),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -542,19 +577,49 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _buildUserManagementScreen(isTablet),
       const RoleManagementScreen(),
       const CallLogsScreen(),
+      const AdminAnalyticsScreen(),
     ];
 
-    final List<String> titles = ['User Management', 'Role Management', 'Call Tracking'];
+    final List<String> titles = [
+      'User Management',
+      'Role Management',
+      'Call Tracking',
+      'Analytics',
+    ];
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Admin Dashboard - ${titles[_currentIndex]}'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Admin Dashboard',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: Colors.white),
+            ),
+            Text(
+              titles[_currentIndex],
+              style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.white70,
+                  fontWeight: FontWeight.normal),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
+            onPressed: _showAdminCredentials,
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'Admin Credentials',
+          ),
+          IconButton(
             onPressed: () {
-              if (_currentIndex == 0) {
-                _loadUsers();
-              }
+              if (_currentIndex == 0) _loadUsers();
             },
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
@@ -569,15 +634,71 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       body: screens[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.textSecondary,
+        type: BottomNavigationBarType.fixed,
         onTap: (index) {
           setState(() {
             _currentIndex = index;
           });
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Users'),
-          BottomNavigationBarItem(icon: Icon(Icons.work), label: 'Roles'),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Calls'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.people_outline),
+              activeIcon: Icon(Icons.people),
+              label: 'Users'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.work_outline),
+              activeIcon: Icon(Icons.work),
+              label: 'Roles'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.call_outlined),
+              activeIcon: Icon(Icons.call),
+              label: 'Calls'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.bar_chart_outlined),
+              activeIcon: Icon(Icons.bar_chart),
+              label: 'Analytics'),
+        ],
+      ),
+    );
+  }
+}
+
+/// Small helper widget to display a credential row
+class _CredentialRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _CredentialRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Text(
+            '$label: ',
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textSecondary,
+                fontSize: 13),
+          ),
+          Expanded(
+            child: SelectableText(
+              value,
+              style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500),
+            ),
+          ),
         ],
       ),
     );

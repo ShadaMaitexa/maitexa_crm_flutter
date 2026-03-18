@@ -1,10 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
+import 'package:firebase_core/firebase_core.dart';
 import '../models/user_model.dart';
 import '../models/role_model.dart';
 
 class FirebaseService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final auth.FirebaseAuth _auth = auth.FirebaseAuth.instance;
+  
   static FirebaseFirestore get firestore => _firestore;
+  static auth.FirebaseAuth get authInstance => _auth;
 
   // Collections
   static const String usersCollection = 'users';
@@ -50,17 +55,91 @@ class FirebaseService {
         );
       }
 
-      // Check for other users in Firestore
-      final QuerySnapshot userSnapshot = await _firestore
-          .collection(usersCollection)
-          .where('email', isEqualTo: email)
-          .where('password', isEqualTo: password)
-          .where('isActive', isEqualTo: true)
-          .get();
+      // 1. Sign in with Firebase Auth
+      final auth.UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-      if (userSnapshot.docs.isNotEmpty) {
-        final userData = userSnapshot.docs.first.data() as Map<String, dynamic>;
-        return User.fromJson({'id': userSnapshot.docs.first.id, ...userData});
+      if (userCredential.user != null) {
+        // 2. Fetch user profile from Firestore
+        // First try by UID (new system)
+        DocumentSnapshot userDoc = await _firestore
+            .collection(usersCollection)
+            .doc(userCredential.user!.uid)
+            .get();
+
+        // Check if UID doc has enough info
+        bool hasFullProfile = userDoc.exists && 
+            (userDoc.data() as Map<String, dynamic>?)?['name'] != null;
+
+        // If not found or incomplete, search by email (legacy/migration fallback)
+        if (!hasFullProfile) {
+          final querySnapshot = await _firestore
+              .collection(usersCollection)
+              .where('email', isEqualTo: email)
+              .get();
+          
+          final legacyDocs = querySnapshot.docs.where((d) => d.id != userCredential.user!.uid).toList();
+
+          if (legacyDocs.isNotEmpty) {
+            final Map<String, dynamic> legacyData = Map.from(legacyDocs.first.data()!);
+            final String oldId = legacyDocs.first.id;
+            final String newId = userCredential.user!.uid;
+
+            // MIGRATE: Merge old data into the new UID document
+            await _firestore.collection(usersCollection).doc(newId).set({
+              ...legacyData,
+              'id': newId,
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+            
+            await _firestore.collection(usersCollection).doc(oldId).delete();
+
+            // 4. Update historical records to the new UID
+            final historyCollections = [
+              {'coll': callsCollection, 'fields': ['userId', 'user_id']},
+              {'coll': leadsCollection, 'fields': ['createdBy', 'user_id']},
+              {'coll': phoneNotesCollection, 'fields': ['userId', 'user_id']},
+              {'coll': leadNotesCollection, 'fields': ['userId', 'user_id']},
+              {'coll': followUpsCollection, 'fields': ['createdBy', 'userId']},
+              {'coll': tasksCollection, 'fields': ['createdBy']},
+            ];
+
+            for (var config in historyCollections) {
+              final coll = config['coll'] as String;
+              final fields = config['fields'] as List<String>;
+              for (var field in fields) {
+                try {
+                  final snap = await _firestore.collection(coll).where(field, isEqualTo: oldId).get();
+                  if (snap.docs.isNotEmpty) {
+                    final batch = _firestore.batch();
+                    for (var doc in snap.docs) {
+                      batch.update(doc.reference, {field: newId});
+                    }
+                    await batch.commit();
+                  }
+                } catch (e) {
+                  print('Error migrating $coll ($field): $e');
+                }
+              }
+            }
+            
+            // Re-fetch the proper doc
+            userDoc = await _firestore.collection(usersCollection).doc(newId).get();
+          }
+        }
+
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          
+          // Update lastLogin
+          await _firestore.collection(usersCollection).doc(userDoc.id).update({
+            'lastLogin': FieldValue.serverTimestamp(),
+          });
+
+          return User.fromJson({'id': userDoc.id, ...userData});
+        }
       }
 
       return null;
@@ -71,8 +150,7 @@ class FirebaseService {
   }
 
   static Future<void> signOut() async {
-    // No Firebase Auth, just return
-    return;
+    await _auth.signOut();
   }
 
   static Future<User?> getCurrentUser() async {
@@ -125,10 +203,41 @@ class FirebaseService {
 
   static Future<String?> addUser(Map<String, dynamic> userData) async {
     try {
-      // Remove id if present as it will be auto-generated
-      userData.remove('id');
+      final String? password = userData['password'];
+      final String? email = userData['email'];
 
-      // Generate avatar from name if not provided
+      if (email == null || password == null) {
+        print('Email and Password are required for Auth registration');
+        return null;
+      }
+
+      // 1. Create user in Firebase Auth
+      // We use a secondary app instance to prevent the current (admin) session from being signed out
+      auth.UserCredential? userCredential;
+      try {
+        final FirebaseApp secondaryApp = await Firebase.initializeApp(
+          name: 'SecondaryApp',
+          options: Firebase.app().options,
+        );
+        final auth.FirebaseAuth secondaryAuth = auth.FirebaseAuth.instanceFor(app: secondaryApp);
+        userCredential = await secondaryAuth.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+        await secondaryApp.delete();
+      } catch (e) {
+        print('Secondary Auth creation error: $e');
+        // Fallback or rethrow based on error
+        rethrow;
+      }
+
+      final String uid = userCredential.user!.uid;
+
+      // 2. Prepare Firestore data (remove password)
+      userData.remove('id');
+      userData.remove('password');
+
+      // Generate avatar from name if not provided (existing logic)
       if (userData['avatar'] == null || userData['avatar'].toString().isEmpty) {
         final name = userData['name'] ?? '';
         if (name.isNotEmpty) {
@@ -150,15 +259,18 @@ class FirebaseService {
         userData['organization'] = 'Acadeno CRM';
       }
 
-      final DocumentReference docRef = await _firestore
+      // 3. Create document in Firestore with UID as Document ID
+      await _firestore
           .collection(usersCollection)
-          .add({
+          .doc(uid)
+          .set({
             ...userData,
             'createdAt': FieldValue.serverTimestamp(),
             'updatedAt': FieldValue.serverTimestamp(),
             'isActive': true,
           });
-      return docRef.id;
+
+      return uid;
     } catch (e) {
       print('Add user error: $e');
       return null;
@@ -973,12 +1085,37 @@ class FirebaseService {
         .snapshots();
   }
 
-  static Future<void> addPhoneNote(String phoneNumber, String note) async {
-    await _firestore.collection(phoneNotesCollection).add({
-      'phone': phoneNumber,
+  static Future<void> addPhoneNote(String phoneNumber, String note, {String? callId}) async {
+    final noteData = {
       'note': note,
+      'phone': phoneNumber,
       'created_at': FieldValue.serverTimestamp(),
-    });
+    };
+
+    // 1. Still add to legacy collection for backward compatibility if needed, 
+    // but the user wants it "under" the call.
+    await _firestore.collection(phoneNotesCollection).add(noteData);
+
+    // 2. If callId is provided, add to that call doc. 
+    // If not, try to find the latest call for this number.
+    String? targetCallId = callId;
+    if (targetCallId == null) {
+      final latestCall = await _firestore
+          .collection(callsCollection)
+      .where('phone_number', isEqualTo: phoneNumber)
+      .orderBy('timestamp', descending: true)
+      .limit(1)
+      .get();
+      if (latestCall.docs.isNotEmpty) {
+        targetCallId = latestCall.docs.first.id;
+      }
+    }
+
+    if (targetCallId != null) {
+      await _firestore.collection(callsCollection).doc(targetCallId).update({
+        'notes': FieldValue.arrayUnion([noteData]),
+      });
+    }
   }
 
   // Activity Management
@@ -1012,6 +1149,17 @@ class FirebaseService {
   static Future<void> updateCallLabel(String callId, String label) async {
     await _firestore.collection(callsCollection).doc(callId).update({
       'label': label,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  static Future<void> addFollowUpToCall(String callId, Map<String, dynamic> followUpInfo) async {
+    await _firestore.collection(callsCollection).doc(callId).update({
+      'follow_up': {
+        ...followUpInfo,
+        'scheduledAt': FieldValue.serverTimestamp(),
+      },
+      'hasFollowUp': true,
     });
   }
 

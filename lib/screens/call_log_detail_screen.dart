@@ -159,9 +159,16 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
     setState(() => _isSavingNote = true);
 
     try {
+      // Normalize number
+      String number = widget.callEntry.number!.replaceAll(RegExp(r'\s+'), '');
+      if (number.length == 10) number = '+91$number';
+      
+      final String callDocId = '${number}_${widget.callEntry.timestamp}';
+
       await FirebaseService.addPhoneNote(
-        widget.callEntry.number!,
+        number,
         _noteController.text.trim(),
+        callId: callDocId,
       );
       _noteController.clear();
       if (mounted) {

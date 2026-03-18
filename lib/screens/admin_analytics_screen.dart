@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../constants/app_constants.dart';
 import '../services/firebase_service.dart';
+import '../services/export_service.dart';
 
 // ─────────────────────────────────────────────────────────────
 //  Admin Analytics Screen
@@ -198,6 +199,28 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
         return true;
       }).toList();
 
+  List<Map<String, dynamic>> get _filteredPhoneNotes => _allPhoneNotes.where((n) {
+        final dt = _tsToDate(n['created_at'] ?? n['createdAt'] ?? n['timestamp']);
+        final range = _inRange(dt);
+        if (!range) return false;
+        if (_selectedUserId != null) {
+          final uid = (n['userId'] ?? n['user_id'] ?? '').toString();
+          return uid == _selectedUserId;
+        }
+        return true;
+      }).toList();
+
+  List<Map<String, dynamic>> get _filteredLeadNotes => _allLeadNotes.where((n) {
+        final dt = _tsToDate(n['created_at'] ?? n['createdAt'] ?? n['timestamp']);
+        final range = _inRange(dt);
+        if (!range) return false;
+        if (_selectedUserId != null) {
+          final uid = (n['userId'] ?? n['user_id'] ?? '').toString();
+          return uid == _selectedUserId;
+        }
+        return true;
+      }).toList();
+
   // group calls by day
   Map<String, List<Map<String, dynamic>>> _groupByDay(
       List<Map<String, dynamic>> items, String tsKey) {
@@ -224,7 +247,7 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
   }
 
   bool _isHotDeal(Map l) =>
-      _leadLabel(l).toLowerCase().contains('hot');
+      _leadLabel(l).toLowerCase().contains('hot') || (l['status'] ?? '').toString().toLowerCase().contains('hot');
 
   bool _isConverted(Map l) =>
       (l['status'] ?? '').toString().toLowerCase().contains('convert');
@@ -285,11 +308,13 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
                           calls: _filteredCalls,
                           phoneNotes: _allPhoneNotes,
                           leadNotes: _allLeadNotes,
+                          allFollowUps: _allFollowUps,
                           groupByDay: _groupByDay,
                           callType: _callType,
                           isHotDeal: _isHotDeal,
                           findUserName: _findUserName,
-                          numberCategories: _numberCategories),
+                          numberCategories: _numberCategories,
+                          tsToDate: _tsToDate),
                       _LeadsTab(
                           leads: _filteredLeads,
                           labelFn: _leadLabel,
@@ -307,11 +332,20 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
                       _UserStatsTab(
                           calls: _filteredCalls,
                           leads: _filteredLeads,
+                          followUps: _filteredFollowUps,
+                          phoneNotes: _filteredPhoneNotes,
+                          leadNotes: _filteredLeadNotes,
                           users: _allUsers,
                           callType: _callType,
                           isHot: _isHotDeal,
                           isConverted: _isConverted,
-                          findUserName: _findUserName),
+                          findUserName: _findUserName,
+                          onUserTap: (uid) {
+                            setState(() {
+                              _selectedUserId = uid;
+                              _tabController.animateTo(0); // Go back to Calls tab with filter applied
+                            });
+                          }),
                       _FollowUpsTab(
                           followUps: _filteredFollowUps,
                           allFollowUps: _allFollowUps,
@@ -331,6 +365,27 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: Column(
         children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Reports & Analytics',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  ExportService.exportCallsToCsv(_filteredCalls, 'Calls_${DateFormat('yyyyMMdd').format(DateTime.now())}');
+                },
+                icon: const Icon(Icons.file_download, color: Colors.white),
+                tooltip: 'Export to Excel',
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
           _buildUserDropdown(),
           const SizedBox(height: 12),
           GestureDetector(
@@ -427,33 +482,36 @@ class _CallsTab extends StatelessWidget {
   final List<Map<String, dynamic>> calls;
   final List<Map<String, dynamic>> phoneNotes;
   final List<Map<String, dynamic>> leadNotes;
+  final List<Map<String, dynamic>> allFollowUps;
   final Map<String, List<Map<String, dynamic>>> Function(
       List<Map<String, dynamic>>, String) groupByDay;
   final String Function(Map) callType;
   final bool Function(Map) isHotDeal;
   final String Function(String?) findUserName;
   final Map<String, String> numberCategories;
+  final DateTime? Function(dynamic) tsToDate;
 
   const _CallsTab({
     required this.calls,
     required this.phoneNotes,
     required this.leadNotes,
+    required this.allFollowUps,
     required this.groupByDay,
     required this.callType,
     required this.isHotDeal,
     required this.findUserName,
     required this.numberCategories,
+    required this.tsToDate,
   });
 
   int _count(List<Map<String, dynamic>> list, String type) =>
       list.where((c) => callType(c) == type).length;
 
   int _hotCount(List<Map<String, dynamic>> list) => list
-      .where((c) =>
-          numberCategories[c['number']?.toString() ?? '']
-              ?.toLowerCase()
-              .contains('hot') ==
-          true)
+      .where((c) {
+        final label = (c['label'] ?? numberCategories[(c['phone_number'] ?? c['number'])?.toString() ?? ''] ?? '').toString().toLowerCase();
+        return label.contains('hot');
+      })
       .length;
 
   @override
@@ -515,8 +573,11 @@ class _CallsTab extends StatelessWidget {
             items: dayItems,
             phoneNotes: phoneNotes,
             leadNotes: leadNotes,
+            allFollowUps: allFollowUps,
             callType: callType,
             findUserName: findUserName,
+            numberCategories: numberCategories,
+            tsToDate: tsToDate,
             total: dayItems.length,
             incoming: inc,
             outgoing: out,
@@ -534,8 +595,11 @@ class _DayCallCard extends StatefulWidget {
   final List<Map<String, dynamic>> items;
   final List<Map<String, dynamic>> phoneNotes;
   final List<Map<String, dynamic>> leadNotes;
+  final List<Map<String, dynamic>> allFollowUps;
   final String Function(Map) callType;
   final String Function(String?) findUserName;
+  final Map<String, String> numberCategories;
+  final DateTime? Function(dynamic) tsToDate;
   final int total, incoming, outgoing, missed, HotDeals;
 
   const _DayCallCard({
@@ -543,8 +607,11 @@ class _DayCallCard extends StatefulWidget {
     required this.items,
     required this.phoneNotes,
     required this.leadNotes,
+    required this.allFollowUps,
     required this.callType,
     required this.findUserName,
+    required this.numberCategories,
+    required this.tsToDate,
     required this.total,
     required this.incoming,
     required this.outgoing,
@@ -654,19 +721,14 @@ class _DayCallCardState extends State<_DayCallCard> {
                       ],
                     ),
                   ),
-                  _MiniStatBadge(widget.incoming, Colors.green,
-                      Icons.call_received),
+                  _MiniStatBadge(widget.incoming, Colors.green, Icons.call_received),
                   const SizedBox(width: 6),
-                  _MiniStatBadge(
-                      widget.outgoing, AppColors.primary, Icons.call_made),
+                  _MiniStatBadge(widget.outgoing, AppColors.primary, Icons.call_made),
                   const SizedBox(width: 6),
-                  _MiniStatBadge(
-                      widget.missed, AppColors.error, Icons.call_missed),
+                  _MiniStatBadge(widget.missed, AppColors.error, Icons.call_missed),
                   const SizedBox(width: 6),
                   Icon(
-                    _expanded
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
+                    _expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
                     color: AppColors.textSecondary,
                     size: 20,
                   ),
@@ -683,101 +745,77 @@ class _DayCallCardState extends State<_DayCallCard> {
                   const Divider(),
                   Row(
                     children: [
-                      _StatPill('Incoming', widget.incoming, Colors.green),
+                      _StatBadgeButton('Incoming', widget.incoming, Colors.green),
                       const SizedBox(width: 8),
-                      _StatPill('Outgoing', widget.outgoing, AppColors.primary),
+                      _StatBadgeButton('Outgoing', widget.outgoing, AppColors.primary),
                       const SizedBox(width: 8),
-                      _StatPill('Missed', widget.missed, AppColors.error),
+                      _StatBadgeButton('Missed', widget.missed, AppColors.error),
                     ],
                   ),
                   if (widget.HotDeals > 0) ...[
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: Colors.orange.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                            color: Colors.orange.withOpacity(0.3)),
+                        border: Border.all(color: Colors.orange.withOpacity(0.3)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.local_fire_department,
-                              color: Colors.orange, size: 16),
+                          const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
                           const SizedBox(width: 6),
                           Text(
-                            '${widget.HotDeals} Hot Deals Call${widget.HotDeals > 1 ? 's' : ''}',
-                            style: const TextStyle(
-                              color: Colors.orange,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
+                            '${widget.HotDeals} Hot Deal Calls',
+                            style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13),
                           ),
                         ],
                       ),
                     ),
                   ],
                   const SizedBox(height: 16),
-                  const Text('Call Logs:',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          color: AppColors.textSecondary)),
+                  const Text('Daily Logs:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textSecondary)),
                   const SizedBox(height: 8),
                   ...widget.items.map((call) {
                     final type = widget.callType(call);
-                    final number = (call['number'] ?? 'No Number').toString();
+                    final number = (call['phone_number'] ?? call['number'] ?? 'No Number').toString();
                     final name = call['name'] ?? 'Unknown';
-                    final user = widget.findUserName(
-                        (call['userId'] ?? call['user_id'])?.toString());
+                    final user = widget.findUserName((call['userId'] ?? call['user_id'])?.toString());
                     final callTs = call['timestamp'];
                     final time = callTs != null
-                        ? DateFormat('h:mm a').format(
-                            callTs is Timestamp
-                                ? callTs.toDate()
-                                : (callTs is int
-                                    ? DateTime.fromMillisecondsSinceEpoch(callTs)
-                                    : DateTime.now()))
+                        ? DateFormat('h:mm a').format(widget.tsToDate(callTs) ?? DateTime.now())
                         : '--:--';
 
-                    // Find notes for this number around this call time
-                    final matchingPhoneNotes = widget.phoneNotes.where((n) =>
-                        n['phone'] == number).toList();
-                    
-                    // Since specific call-to-note linking is weak, we just show 
-                    // latest notes for that number or filter by day
-                    final dayStart = DateTime(widget.date.year, widget.date.month, widget.date.day);
-                    final dayEnd = dayStart.add(const Duration(days: 1));
+                    final label = (call['label'] ?? widget.numberCategories[number] ?? '').toString();
+                    final isHot = label.toLowerCase().contains('hot');
 
-                    final notesOnThisDay = matchingPhoneNotes.where((n) {
-                      final nTs = n['created_at'];
-                      if (nTs == null) return false;
-                      final nDate = (nTs is Timestamp) ? nTs.toDate() : null;
-                      if (nDate == null) return false;
-                      return nDate.isAfter(dayStart) && nDate.isBefore(dayEnd);
-                    }).toList();
+                    final callNotes = (call['notes'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+                    final matchingNotes = [
+                      ...callNotes,
+                      ...widget.phoneNotes.where((n) => (n['phone'] ?? n['phone_number']) == number),
+                      ...widget.leadNotes.where((n) => n['phone'] == number)
+                    ];
+                    
+                    final callFollowUp = call['follow_up'] as Map<String, dynamic>?;
+                    final matchingFollowUps = [
+                      if (callFollowUp != null) callFollowUp,
+                      ...widget.allFollowUps.where((f) => (f['phoneNumber'] ?? f['phone']) == number),
+                    ];
 
                     Color typeColor = Colors.grey;
                     IconData typeIcon = Icons.call;
-                    if (type == 'Incoming') {
-                      typeColor = Colors.green;
-                      typeIcon = Icons.call_received;
-                    } else if (type == 'Outgoing') {
-                      typeColor = AppColors.primary;
-                      typeIcon = Icons.call_made;
-                    } else if (type == 'Missed') {
-                      typeColor = AppColors.error;
-                      typeIcon = Icons.call_missed;
-                    }
+                    if (type == 'Incoming') { typeColor = Colors.green; typeIcon = Icons.call_received; }
+                    else if (type == 'Outgoing') { typeColor = AppColors.primary; typeIcon = Icons.call_made; }
+                    else if (type == 'Missed') { typeColor = AppColors.error; typeIcon = Icons.call_missed; }
 
                     return Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(10),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.background,
-                        borderRadius: BorderRadius.circular(10),
+                        color: isHot ? Colors.orange.withOpacity(0.03) : AppColors.background,
+                        borderRadius: BorderRadius.circular(12),
+                        border: isHot ? Border.all(color: Colors.orange.withOpacity(0.2), width: 1) : null,
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -787,27 +825,27 @@ class _DayCallCardState extends State<_DayCallCard> {
                               Icon(typeIcon, color: typeColor, size: 16),
                               const SizedBox(width: 10),
                               Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('$name ($number)',
-                                        style: const TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.bold)),
-                                    Text('By: $user • $time',
-                                        style: const TextStyle(
-                                            fontSize: 11,
-                                            color: AppColors.textSecondary)),
-                                  ],
-                                ),
+                                child: Text('$name ($number)', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                               ),
+                              if (label.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: isHot ? Colors.orange : Colors.grey.shade200,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(label.toUpperCase(), style: TextStyle(color: isHot ? Colors.white : Colors.grey.shade700, fontSize: 9, fontWeight: FontWeight.bold)),
+                                ),
                             ],
                           ),
-                          if (notesOnThisDay.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text('Logged by: $user • $time • ${call['sim_name'] ?? 'Unknown SIM'}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                          
+                          if (matchingNotes.isNotEmpty) ...[
                             const SizedBox(height: 8),
                             const Divider(height: 1),
                             const SizedBox(height: 8),
-                            ...notesOnThisDay.map((n) => Padding(
+                            ...matchingNotes.map((n) => Padding(
                                   padding: const EdgeInsets.only(bottom: 4),
                                   child: Row(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -826,6 +864,25 @@ class _DayCallCardState extends State<_DayCallCard> {
                                     ],
                                   ),
                                 )),
+                          ],
+
+                          if (matchingFollowUps.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            const Text('Scheduled Follow-Ups:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.statusFollowUp)),
+                            ...matchingFollowUps.map((f) {
+                              final fDate = widget.tsToDate(f['followUpDate']);
+                              final dateStr = fDate != null ? DateFormat('MMM d, h:mm a').format(fDate) : 'No date';
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.event, size: 10, color: AppColors.statusFollowUp),
+                                    const SizedBox(width: 6),
+                                    Text('$dateStr • ${f['status'] ?? 'Pending'}', style: const TextStyle(fontSize: 11)),
+                                  ],
+                                ),
+                              );
+                            }),
                           ],
                         ],
                       ),
@@ -1087,20 +1144,28 @@ class _HotDealsTab extends StatelessWidget {
 class _UserStatsTab extends StatelessWidget {
   final List<Map<String, dynamic>> calls;
   final List<Map<String, dynamic>> leads;
+  final List<Map<String, dynamic>> followUps;
+  final List<Map<String, dynamic>> phoneNotes;
+  final List<Map<String, dynamic>> leadNotes;
   final List<Map<String, dynamic>> users;
   final String Function(Map) callType;
   final bool Function(Map) isHot;
   final bool Function(Map) isConverted;
   final String Function(String?) findUserName;
+  final Function(String) onUserTap;
 
   const _UserStatsTab({
     required this.calls,
     required this.leads,
+    required this.followUps,
+    required this.phoneNotes,
+    required this.leadNotes,
     required this.users,
     required this.callType,
     required this.isHot,
     required this.isConverted,
     required this.findUserName,
+    required this.onUserTap,
   });
 
   @override
@@ -1127,6 +1192,30 @@ class _UserStatsTab extends StatelessWidget {
       if (isConverted(lead)) userStats[uid]!.converted++;
     }
 
+    for (final note in phoneNotes) {
+      final uid = note['userId']?.toString() ?? note['user_id']?.toString() ?? '';
+      if (uid.isNotEmpty) {
+        userStats.putIfAbsent(uid, () => _UserStat(uid, findUserName(uid)));
+        userStats[uid]!.notes++;
+      }
+    }
+
+    for (final note in leadNotes) {
+      final uid = note['userId']?.toString() ?? note['user_id']?.toString() ?? '';
+      if (uid.isNotEmpty) {
+        userStats.putIfAbsent(uid, () => _UserStat(uid, findUserName(uid)));
+        userStats[uid]!.notes++;
+      }
+    }
+
+    for (final f in followUps) {
+      final uid = f['createdBy']?.toString() ?? f['userId']?.toString() ?? '';
+      if (uid.isNotEmpty) {
+        userStats.putIfAbsent(uid, () => _UserStat(uid, findUserName(uid)));
+        userStats[uid]!.followUps++;
+      }
+    }
+
     // Also add users with no activity
     for (final u in users) {
       final uid = u['id'] as String;
@@ -1145,7 +1234,10 @@ class _UserStatsTab extends StatelessWidget {
       children: [
         _SectionHeader('Per-User Call & Lead Stats', Icons.people),
         const SizedBox(height: 10),
-        ...statList.map((stat) => _UserStatCard(stat: stat)),
+        ...statList.map((stat) => _UserStatCard(
+              stat: stat,
+              onTap: () => onUserTap(stat.uid),
+            )),
       ],
     );
   }
@@ -1161,14 +1253,17 @@ class _UserStat {
   int leads = 0;
   int HotDeals = 0;
   int converted = 0;
+  int notes = 0;
+  int followUps = 0;
 
   _UserStat(this.uid, this.name);
 }
 
 class _UserStatCard extends StatelessWidget {
   final _UserStat stat;
+  final VoidCallback onTap;
 
-  const _UserStatCard({required this.stat});
+  const _UserStatCard({required this.stat, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1229,6 +1324,28 @@ class _UserStatCard extends StatelessWidget {
                 Expanded(child: _GridStat('Hot', '${stat.HotDeals}', Colors.orange)),
                 Expanded(child: _GridStat('Converted', '${stat.converted}', AppColors.success)),
               ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(child: _GridStat('Notes', '${stat.notes}', Colors.blueGrey)),
+                Expanded(child: _GridStat('Follow-Ups', '${stat.followUps}', AppColors.statusFollowUp)),
+                const Expanded(child: SizedBox()), // Spacer
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: onTap,
+                icon: const Icon(Icons.filter_list, size: 16),
+                label: const Text('View Detailed Logs', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  backgroundColor: AppColors.primary.withOpacity(0.08),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
             ),
           ],
         ),
@@ -1503,12 +1620,12 @@ class _MiniStatBadge extends StatelessWidget {
   }
 }
 
-class _StatPill extends StatelessWidget {
+class _StatBadgeButton extends StatelessWidget {
   final String label;
   final int count;
   final Color color;
 
-  const _StatPill(this.label, this.count, this.color);
+  const _StatBadgeButton(this.label, this.count, this.color);
 
   @override
   Widget build(BuildContext context) {
@@ -1518,16 +1635,12 @@ class _StatPill extends StatelessWidget {
         decoration: BoxDecoration(
           color: color.withOpacity(0.08),
           borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.2)),
         ),
         child: Column(
           children: [
-            Text('$count',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                    fontSize: 16)),
-            Text(label,
-                style: TextStyle(color: color, fontSize: 11)),
+            Text('$count', style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 16)),
+            Text(label, style: TextStyle(color: color, fontSize: 11)),
           ],
         ),
       ),

@@ -8,6 +8,7 @@ import '../providers/lead_provider.dart';
 import '../services/firebase_service.dart';
 import '../models/call_model.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import '../providers/auth_provider.dart';
 import 'lead_profile_screen.dart';
 import 'add_follow_up_screen.dart';
 
@@ -27,7 +28,10 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
     super.initState();
     // Sync calls when screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<CallProvider>().syncCalls();
+      final authProvider = context.read<AuthProvider>();
+      if (authProvider.user != null) {
+        context.read<CallProvider>().syncCalls(authProvider.user!.id);
+      }
     });
   }
 
@@ -59,7 +63,12 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
           else
             IconButton(
               icon: const Icon(Icons.sync),
-              onPressed: () => callProvider.syncCalls(),
+              onPressed: () {
+                final authProvider = context.read<AuthProvider>();
+                if (authProvider.user != null) {
+                  callProvider.syncCalls(authProvider.user!.id);
+                }
+              },
             ),
         ],
       ),

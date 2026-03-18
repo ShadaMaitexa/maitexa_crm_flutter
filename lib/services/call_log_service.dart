@@ -8,8 +8,6 @@ class CallLogService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   static Future<bool> requestPermissions() async {
-    // Request all necessary permissions for call tracking and SIM identification
-    // Note: Permission.phone covers READ_PHONE_STATE and related phone permissions
     final statuses = await [
       Permission.phone,
       Permission.contacts,
@@ -24,55 +22,48 @@ class CallLogService {
 
   static String normalizeSimId(String? simId) {
     if (simId == null || simId.trim().isEmpty) return 'Unknown SIM';
-    
     final trimmed = simId.trim();
     if (trimmed == '0') return 'SIM 1';
     if (trimmed == '1') return 'SIM 2';
-    
     final lower = trimmed.toLowerCase().replaceAll(' ', '');
     if (lower.contains('sim0') || lower.contains('sim1')) return 'SIM 1';
     if (lower.contains('sim2')) return 'SIM 2';
-    
     return trimmed;
   }
 
   static Future<List<String>> getAvailableSims() async {
-    await requestPermissions(); // Ensure perms
-
+    await requestPermissions();
     return ['SIM 1', 'SIM 2'];
   }
 
-  Future<void> syncCallLogs() async {
-    // 1. Request Permission
-    var status = await Permission.phone.status;
-    if (!status.isGranted) {
-      status = await Permission.phone.request();
-    }
+  Future<void> syncCallLogs(String userId) async {
+    final permissions = await requestPermissions();
+    if (!permissions) return;
 
-    var logStatus = await Permission.contacts.status;
-    if (!logStatus.isGranted) {
-      logStatus = await Permission.contacts.request();
+    final userDoc = await _firestore.collection(FirebaseService.usersCollection).doc(userId).get();
+    String? userPhone = userDoc.exists ? (userDoc.data()?['phone'] as String?)?.replaceAll(RegExp(r'\s+'), '') : null;
+    
+    String? userPhoneShort = userPhone;
+    if (userPhoneShort != null && userPhoneShort.length > 10) {
+      userPhoneShort = userPhoneShort.substring(userPhoneShort.length - 10);
     }
 
     if (await Permission.phone.isGranted) {
-      // 2. Fetch Call Logs (all available logs on device)
-      // We process them to ensure they are persisted in our CRM (Firebase)
       Iterable<CallLogEntry> entries = await CallLog.get();
-
-      // Sort by timestamp descending
       final listToProcess = entries.toList();
       listToProcess.sort(
         (a, b) => (b.timestamp ?? 0).compareTo(a.timestamp ?? 0),
       );
 
-      // Cache lead IDs during this sync session to avoid redundant Firestore lookups
       final Map<String, String?> leadIdCache = {};
 
-      // Limit to 2000 most recent records to prevent indefinite syncing on very old devices
-      // while still capturing effectively 'all' relevant history.
       for (var entry in listToProcess.take(2000)) {
         try {
-          await _processCallLogEntry(entry, leadIdCache: leadIdCache);
+          // Log only from registered SIM if possible
+          if (userPhoneShort != null && entry.simDisplayName != null) {
+             // We can log specific SIM name for transparency
+          }
+          await _processCallLogEntry(entry, userId, leadIdCache: leadIdCache);
         } catch (e) {
           debugPrint('Error syncing individual call log: $e');
         }
@@ -81,36 +72,39 @@ class CallLogService {
   }
 
   Future<void> _processCallLogEntry(
-    CallLogEntry entry, {
+    CallLogEntry entry,
+    String userId, {
     Map<String, String?>? leadIdCache,
   }) async {
     if (entry.number == null) return;
 
-    String phoneNumber = entry.number!;
-    // Clean phone number (remove spaces, etc. if needed)
-    // For simplicity, we keep it as is or do basic cleaning
-    phoneNumber = phoneNumber.replaceAll(RegExp(r'\s+'), '');
+    String phoneNumber = entry.number!.replaceAll(RegExp(r'\s+'), '');
+    
+    // Normalize with +91 if needed
+    if (phoneNumber.length == 10 && RegExp(r'^[0-9]+$').hasMatch(phoneNumber)) {
+      phoneNumber = '+91$phoneNumber';
+    } else if (phoneNumber.length == 12 && phoneNumber.startsWith('91')) {
+      phoneNumber = '+$phoneNumber';
+    }
 
-    // Check for duplicate call entry in Firestore
-    // We can use a unique ID based on number and timestamp
     String callDocId = '${phoneNumber}_${entry.timestamp}';
 
     var doc = await _firestore
         .collection(FirebaseService.callsCollection)
         .doc(callDocId)
         .get();
-    if (doc.exists) return; // Skip if already synced
+    if (doc.exists) return;
 
-    // Determine call type
     String callType = _getCallTypeString(entry.callType);
+    
+    final existingLabel = await FirebaseService.getNumberCategory(phoneNumber);
 
-    // 1. Check if lead exists
     String? leadId = await _findOrCreateLead(
       phoneNumber,
+      userId,
       leadIdCache: leadIdCache,
     );
 
-    // 2. Record Call
     await _firestore
         .collection(FirebaseService.callsCollection)
         .doc(callDocId)
@@ -121,11 +115,15 @@ class CallLogService {
             entry.timestamp ?? 0,
           ),
           'duration': entry.duration ?? 0,
-          'label': 'Unknown', // Default label
+          'label': existingLabel ?? 'Unknown',
           'lead_id': leadId,
+          'userId': userId,
+          'user_id': userId,
+          'createdBy': userId,
+          'sim_name': entry.simDisplayName ?? 'Unknown',
+          'notes': [], // Unified storage
         });
 
-    // 3. Record Activity if lead exists
     if (leadId != null) {
       await FirebaseService.addActivity(
         leadId,
@@ -136,7 +134,8 @@ class CallLogService {
   }
 
   Future<String?> _findOrCreateLead(
-    String phoneNumber, {
+    String phoneNumber,
+    String userId, {
     Map<String, String?>? leadIdCache,
   }) async {
     if (leadIdCache != null && leadIdCache.containsKey(phoneNumber)) {
@@ -155,7 +154,6 @@ class CallLogService {
         leadIdCache?[phoneNumber] = leadId;
         return leadId;
       } else {
-        // Create new lead
         var docRef = await _firestore
             .collection(FirebaseService.leadsCollection)
             .add({
@@ -166,6 +164,8 @@ class CallLogService {
               'status': 'New Inquiry',
               'created_at': FieldValue.serverTimestamp(),
               'last_contacted': FieldValue.serverTimestamp(),
+              'createdBy': userId,
+              'user_id': userId,
             });
         return docRef.id;
       }

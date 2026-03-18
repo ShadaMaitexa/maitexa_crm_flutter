@@ -8,11 +8,11 @@ class CallProvider with ChangeNotifier {
 
   bool get isSyncing => _isSyncing;
 
-  Future<void> syncCalls() async {
+  Future<void> syncCalls(String userId) async {
     _isSyncing = true;
     notifyListeners();
     try {
-      await _callLogService.syncCallLogs();
+      await _callLogService.syncCallLogs(userId);
     } finally {
       _isSyncing = false;
       notifyListeners();

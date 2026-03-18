@@ -60,10 +60,17 @@ class _SignupScreenState extends State<SignupScreen> {
         }
 
         // Add user to Firestore
+        String phoneNumber = _phoneController.text.trim();
+        if (phoneNumber.isNotEmpty && !phoneNumber.startsWith('+')) {
+          if (phoneNumber.length == 10) {
+            phoneNumber = '+91$phoneNumber';
+          }
+        }
+
         final userData = {
           'name': _nameController.text.trim(),
           'email': _emailController.text.trim(),
-          'phone': _phoneController.text.trim(),
+          'phone': phoneNumber,
           'password': _passwordController.text, // In a real app, hash this!
           'role': AppStrings.roleMarketingExecutive, // Default role
           'isActive': true,

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:firebase_core/firebase_core.dart';
 import '../models/user_model.dart';
@@ -73,17 +74,34 @@ class FirebaseService {
         bool hasFullProfile = userDoc.exists && 
             (userDoc.data() as Map<String, dynamic>?)?['name'] != null;
 
-        // If not found or incomplete, search by email (legacy/migration fallback)
+        // Improved migration search
         if (!hasFullProfile) {
+          // A. Search by email field
           final querySnapshot = await _firestore
               .collection(usersCollection)
               .where('email', isEqualTo: email)
               .get();
           
-          final legacyDocs = querySnapshot.docs.where((d) => d.id != userCredential.user!.uid).toList();
+          List<DocumentSnapshot> legacyDocs = querySnapshot.docs.where((d) => d.id != userCredential.user!.uid).toList();
+
+          // B. Fallback: Search by doc ID matching email
+          if (legacyDocs.isEmpty) {
+            final emailDoc = await _firestore.collection(usersCollection).doc(email).get();
+            if (emailDoc.exists) legacyDocs = [emailDoc];
+          }
+
+          // C. Fallback: Search by name (risky but okay if only 1 user exists)
+          if (legacyDocs.isEmpty) {
+             final nameQuery = await _firestore
+                .collection(usersCollection)
+                .where('name', isGreaterThanOrEqualTo: 'Ashna') // Specific fix for current issue
+                .limit(5)
+                .get();
+             legacyDocs = nameQuery.docs.where((d) => d.id != userCredential.user!.uid).toList();
+          }
 
           if (legacyDocs.isNotEmpty) {
-            final Map<String, dynamic> legacyData = Map.from(legacyDocs.first.data()!);
+            final Map<String, dynamic> legacyData = Map.from(legacyDocs.first.data() as Map? ?? {});
             final String oldId = legacyDocs.first.id;
             final String newId = userCredential.user!.uid;
 
@@ -91,36 +109,43 @@ class FirebaseService {
             await _firestore.collection(usersCollection).doc(newId).set({
               ...legacyData,
               'id': newId,
+              'email': email,
               'updatedAt': FieldValue.serverTimestamp(),
             }, SetOptions(merge: true));
             
-            await _firestore.collection(usersCollection).doc(oldId).delete();
+            if (oldId != newId) {
+              await _firestore.collection(usersCollection).doc(oldId).delete();
+            }
 
-            // 4. Update historical records to the new UID
+            // A list of suspected "orphan" IDs to sweep up
+            final idPatterns = [oldId, 'Unknown', 'unknown', '', 'null'];
+
             final historyCollections = [
-              {'coll': callsCollection, 'fields': ['userId', 'user_id']},
-              {'coll': leadsCollection, 'fields': ['createdBy', 'user_id']},
+              {'coll': callsCollection, 'fields': ['userId', 'user_id', 'createdBy']},
+              {'coll': leadsCollection, 'fields': ['createdBy', 'user_id', 'userId']},
               {'coll': phoneNotesCollection, 'fields': ['userId', 'user_id']},
-              {'coll': leadNotesCollection, 'fields': ['userId', 'user_id']},
+              {'coll': leadNotesCollection, 'fields': ['userId', 'user_id', 'createdBy']},
               {'coll': followUpsCollection, 'fields': ['createdBy', 'userId']},
-              {'coll': tasksCollection, 'fields': ['createdBy']},
+              {'coll': tasksCollection, 'fields': ['createdBy', 'userId']},
             ];
 
             for (var config in historyCollections) {
               final coll = config['coll'] as String;
               final fields = config['fields'] as List<String>;
               for (var field in fields) {
-                try {
-                  final snap = await _firestore.collection(coll).where(field, isEqualTo: oldId).get();
-                  if (snap.docs.isNotEmpty) {
-                    final batch = _firestore.batch();
-                    for (var doc in snap.docs) {
-                      batch.update(doc.reference, {field: newId});
+                for (var suspectId in idPatterns) {
+                  try {
+                    final snap = await _firestore.collection(coll).where(field, isEqualTo: suspectId).get();
+                    if (snap.docs.isNotEmpty) {
+                      final batch = _firestore.batch();
+                      for (var doc in snap.docs) {
+                        batch.update(doc.reference, {field: newId});
+                      }
+                      await batch.commit();
                     }
-                    await batch.commit();
+                  } catch (e) {
+                    print('Error migrating $coll ($field) for $suspectId: $e');
                   }
-                } catch (e) {
-                  print('Error migrating $coll ($field): $e');
                 }
               }
             }
@@ -147,6 +172,116 @@ class FirebaseService {
       print('Sign in error: $e');
       return null;
     }
+  }
+
+  static Future<int> migrateUserRecords(String oldId, String newId) async {
+    if (oldId == newId) return 0;
+    int totalMigrated = 0;
+    
+    debugPrint('MIGRATION: STARTING MASTER SYNC from $oldId TO $newId');
+
+    // ─────────────────────────────────────────────────────────────
+    // 1. Profile Migration (Step 1 - CRITICAL)
+    // ─────────────────────────────────────────────────────────────
+    try {
+      debugPrint('MIGRATION: Moving User Profile...');
+      final oldUser = await _firestore.collection('users').doc(oldId).get(const GetOptions(source: Source.server));
+      if (oldUser.exists) {
+        final data = oldUser.data() as Map<String, dynamic>;
+        await _firestore.collection('users').doc(newId).set({
+          ...data,
+          'id': newId,
+          'migration_synced': true,
+          'updated_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        
+        debugPrint('MIGRATION: New profile written successfully.');
+        
+        if (oldId != newId) {
+          await _firestore.collection('users').doc(oldId).delete();
+          debugPrint('MIGRATION: Legacy profile deleted.');
+        }
+        totalMigrated++;
+      }
+    } catch (e) {
+       debugPrint('MIGRATION ERROR (Profile Step): $e');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 2. Collection Sweeps
+    // ─────────────────────────────────────────────────────────────
+    final List<Map<String, dynamic>> collections = [
+      {'coll': 'calls', 'fields': ['userId', 'user_id', 'createdBy']},
+      {'coll': 'leads', 'fields': ['createdBy', 'user_id', 'userId']},
+      {'coll': 'phone_notes', 'fields': ['userId', 'user_id']},
+      {'coll': 'lead_notes', 'fields': ['userId', 'user_id', 'createdBy']},
+      {'coll': 'follow_ups', 'fields': ['createdBy', 'userId']},
+      {'coll': 'tasks', 'fields': ['createdBy', 'userId']},
+    ];
+
+    bool isOrphan = oldId.toLowerCase() == 'unknown' || oldId == 'null' || oldId.isEmpty;
+
+    for (var config in collections) {
+      final coll = config['coll'] as String;
+      final fields = config['fields'] as List<String>;
+      int collCount = 0;
+      
+      for (var field in fields) {
+        final suspects = [oldId];
+        if (isOrphan) suspects.addAll(['Unknown', 'unknown', 'null', '']);
+        
+        for (var s in suspects) {
+          try {
+            final snap = await _firestore.collection(coll).where(field, isEqualTo: s).get();
+            if (snap.docs.isNotEmpty) {
+              final docs = snap.docs;
+              debugPrint('MIGRATION: Moving ${docs.length} docs from $coll (field: $field, match: $s)');
+              for (var i = 0; i < docs.length; i += 500) {
+                final batch = _firestore.batch();
+                for (var doc in docs.skip(i).take(500)) {
+                  batch.update(doc.reference, {field: newId});
+                  totalMigrated++;
+                  collCount++;
+                }
+                await batch.commit();
+              }
+            }
+          } catch (e) { debugPrint('MIGRATE ERROR ($coll): $e'); }
+        }
+      }
+      if (collCount > 0) debugPrint('MIGRATION: Finished $coll. Moved $collCount records.');
+    }
+
+    debugPrint('MIGRATION COMPLETE. $totalMigrated operations performed.');
+    return totalMigrated;
+  }
+
+  /// DANGER: Clears all historical data from the specified collections.
+  /// Use only for a "Start Fresh" scenario.
+  static Future<int> factoryResetDatabase() async {
+    final List<String> collections = [
+      'calls', 'leads', 'phone_notes', 'lead_notes', 
+      'follow_ups', 'tasks', 'enquiries', 'lead_activities'
+    ];
+    int totalDeleted = 0;
+    
+    for (var coll in collections) {
+      try {
+        final snap = await _firestore.collection(coll).get();
+        if (snap.docs.isNotEmpty) {
+          final batch = _firestore.batch();
+          for (var doc in snap.docs) {
+            batch.delete(doc.reference);
+            totalDeleted++;
+          }
+          await batch.commit();
+          debugPrint('FACTORY RESET: Cleared $coll');
+        }
+      } catch (e) {
+        debugPrint('RESET ERROR ($coll): $e');
+      }
+    }
+    return totalDeleted;
   }
 
   static Future<void> signOut() async {

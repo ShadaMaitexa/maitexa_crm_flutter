@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../constants/app_constants.dart';
 import '../services/firebase_service.dart';
 import '../services/export_service.dart';
+import '../services/diagnostic_service.dart';
 
 // ─────────────────────────────────────────────────────────────
 //  Admin Analytics Screen
@@ -23,7 +24,7 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  DateTime _startDate = DateTime.now().subtract(const Duration(days: 30));
+  DateTime _startDate = DateTime(2026, 3, 14); // Set start date to March 14, 2026
   DateTime _endDate = DateTime.now();
   String? _selectedUserId;
 
@@ -36,6 +37,7 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
   List<Map<String, dynamic>> _allFollowUps = [];
   List<Map<String, dynamic>> _allPhoneNotes = [];
   List<Map<String, dynamic>> _allLeadNotes = [];
+  List<Map<String, dynamic>> _allTasks = []; // Defined here
   Map<String, String> _numberCategories = {};
 
   @override
@@ -64,22 +66,31 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
         _fetchPhoneNotes(),
         _fetchLeadNotes(),
         _fetchEnquiries(),
+        FirebaseService.getTasks(), // Add fetch tasks here
       ]);
 
       setState(() {
         _allCalls = results[0] as List<Map<String, dynamic>>;
-        final leads = results[1] as List<Map<String, dynamic>>;
-        final enquiries = results[7] as List<Map<String, dynamic>>;
-        _allLeads = [...leads, ...enquiries];
+        _allLeads = [
+           ...(results[1] as List<Map<String, dynamic>>),
+           ...(results[7] as List<Map<String, dynamic>>),
+        ];
 
+        // Filter out "Unknown" users
         _allUsers = (results[2] as List).map((u) {
           final user = u as dynamic;
           return {'id': user.id as String, 'name': user.name as String};
+        }).where((u) {
+           final name = u['name'].toString().toLowerCase();
+           final id = u['id'].toString().toLowerCase();
+           return !name.contains('unknown') && id != 'unknown' && id != 'null' && id.isNotEmpty;
         }).toList();
+        
         _allFollowUps = results[3] as List<Map<String, dynamic>>;
         _numberCategories = results[4] as Map<String, String>;
         _allPhoneNotes = results[5] as List<Map<String, dynamic>>;
         _allLeadNotes = results[6] as List<Map<String, dynamic>>;
+        _allTasks = results[8] as List<Map<String, dynamic>>;
         _isLoading = false;
       });
     } catch (e) {
@@ -97,6 +108,10 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
     final snap = await FirebaseService.firestore
         .collection(FirebaseService.callsCollection)
         .get();
+    debugPrint('DB ANALYTICS: Found ${snap.docs.length} calls');
+    for (var d in snap.docs.take(3)) {
+       debugPrint('DATA SAMPLE: ID=${d.id}, data=${d.data()}');
+    }
     return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
   }
 
@@ -256,12 +271,16 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
       _leadLabel(l).toLowerCase().contains('follow');
 
   String _findUserName(String? uid) {
-    if (uid == null || uid.isEmpty) return 'Unknown';
+    if (uid == null || uid.isEmpty || uid == 'null' || uid == 'undefined') return 'Unknown';
+    if (uid == 'K9toyO2tOmcoDjLtGolHnJcmOcr2') return 'Ashna (Primary Account)';
+    if (uid == 'fKyKoacMTLY5v4lo6AfG') return 'Ashna (Old Account - Mismatched)';
+    
     try {
-      return _allUsers.firstWhere((u) => u['id'] == uid)['name'] as String;
-    } catch (_) {
-      return uid;
-    }
+      final user = _allUsers.firstWhere((u) => u['id'] == uid, orElse: () => {});
+      if (user.isNotEmpty) return user['name']?.toString() ?? 'User ($uid)';
+    } catch (_) {}
+    
+    return 'User ($uid)';
   }
 
   // ── date picker ──────────────────────────────────────────────
@@ -368,12 +387,40 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Reports & Analytics',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Reports & Analytics',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (_selectedUserId != null)
+                      GestureDetector(
+                        onTap: () => setState(() => _selectedUserId = null),
+                        child: Container(
+                          margin: const EdgeInsets.only(top: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('Filtering: ${_findUserName(_selectedUserId)}', 
+                                style: const TextStyle(color: Colors.white, fontSize: 10)),
+                              const SizedBox(width: 4),
+                              const Icon(Icons.close, color: Colors.white, size: 12),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               IconButton(
@@ -1141,7 +1188,7 @@ class _HotDealsTab extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────
 //  USER STATS TAB
 // ─────────────────────────────────────────────────────────────
-class _UserStatsTab extends StatelessWidget {
+class _UserStatsTab extends StatefulWidget {
   final List<Map<String, dynamic>> calls;
   final List<Map<String, dynamic>> leads;
   final List<Map<String, dynamic>> followUps;
@@ -1169,75 +1216,301 @@ class _UserStatsTab extends StatelessWidget {
   });
 
   @override
+  State<_UserStatsTab> createState() => _UserStatsTabState();
+}
+
+class _UserStatsTabState extends State<_UserStatsTab> {
+  final TextEditingController _targetIdController = 
+      TextEditingController(text: 'K9toyO2tOmcoDjLtGolHnJcmOcr2');
+
+  @override
+  void dispose() {
+    _targetIdController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Build per-user stats
+    // Access widget properties via widget.xxx
     final Map<String, _UserStat> userStats = {};
 
-    for (final call in calls) {
+    for (final call in widget.calls) {
       final uid = call['userId']?.toString() ?? call['user_id']?.toString() ?? '';
-      userStats.putIfAbsent(uid, () => _UserStat(uid, findUserName(uid)));
-      final type = callType(call);
+      userStats.putIfAbsent(uid, () => _UserStat(uid, widget.findUserName(uid)));
+      final type = widget.callType(call);
       if (type == 'Incoming') userStats[uid]!.incoming++;
       if (type == 'Outgoing') userStats[uid]!.outgoing++;
       if (type == 'Missed') userStats[uid]!.missed++;
       userStats[uid]!.totalCalls++;
     }
 
-    for (final lead in leads) {
+    for (final lead in widget.leads) {
       final uid =
           lead['createdBy']?.toString() ?? lead['user_id']?.toString() ?? '';
-      userStats.putIfAbsent(uid, () => _UserStat(uid, findUserName(uid)));
+      userStats.putIfAbsent(uid, () => _UserStat(uid, widget.findUserName(uid)));
       userStats[uid]!.leads++;
-      if (isHot(lead)) userStats[uid]!.HotDeals++;
-      if (isConverted(lead)) userStats[uid]!.converted++;
+      if (widget.isHot(lead)) userStats[uid]!.HotDeals++;
+      if (widget.isConverted(lead)) userStats[uid]!.converted++;
     }
 
-    for (final note in phoneNotes) {
+    for (final note in widget.phoneNotes) {
       final uid = note['userId']?.toString() ?? note['user_id']?.toString() ?? '';
       if (uid.isNotEmpty) {
-        userStats.putIfAbsent(uid, () => _UserStat(uid, findUserName(uid)));
+        userStats.putIfAbsent(uid, () => _UserStat(uid, widget.findUserName(uid)));
         userStats[uid]!.notes++;
       }
     }
 
-    for (final note in leadNotes) {
+    for (final note in widget.leadNotes) {
       final uid = note['userId']?.toString() ?? note['user_id']?.toString() ?? '';
       if (uid.isNotEmpty) {
-        userStats.putIfAbsent(uid, () => _UserStat(uid, findUserName(uid)));
+        userStats.putIfAbsent(uid, () => _UserStat(uid, widget.findUserName(uid)));
         userStats[uid]!.notes++;
       }
     }
 
-    for (final f in followUps) {
+    for (final f in widget.followUps) {
       final uid = f['createdBy']?.toString() ?? f['userId']?.toString() ?? '';
       if (uid.isNotEmpty) {
-        userStats.putIfAbsent(uid, () => _UserStat(uid, findUserName(uid)));
+        userStats.putIfAbsent(uid, () => _UserStat(uid, widget.findUserName(uid)));
         userStats[uid]!.followUps++;
       }
     }
 
-    // Also add users with no activity
-    for (final u in users) {
+    // Also add users with no activity (already filtered in _loadAll)
+    for (final u in widget.users) {
       final uid = u['id'] as String;
       userStats.putIfAbsent(uid, () => _UserStat(uid, u['name'] as String));
     }
 
-    final statList = userStats.values.toList()
+    final statList = userStats.values.where((s) {
+       final id = s.uid.toLowerCase();
+       if (id == 'unknown' || id == 'null' || id.isEmpty) return false;
+       return true;
+    }).toList()
       ..sort((a, b) => b.totalCalls.compareTo(a.totalCalls));
 
-    if (statList.isEmpty) {
-      return _empty('No user data in the selected range');
-    }
+    final orphanStats = statList.where((s) => s.name.contains('User (')).toList();
+    final realUsers = statList.where((s) => !s.name.contains('User (')).toList();
+
+    final bool hasAshnaMismatch = userStats.containsKey('fKyKoacMTLY5v4lo6AfG');
+    // Also consider it a mismatch if we have a "User (K9t...)" but her name is stuck elsewhere
+    final bool hasUnnamedAshna = userStats.containsKey('K9toyO2tOmcoDjLtGolHnJcmOcr2') && 
+                                widget.findUserName('K9toyO2tOmcoDjLtGolHnJcmOcr2').contains('User (');
 
     return ListView(
       padding: const EdgeInsets.all(16),
+      physics: const AlwaysScrollableScrollPhysics(),
       children: [
+        if (hasAshnaMismatch || hasUnnamedAshna)
+          Container(
+            margin: const EdgeInsets.only(bottom: 20),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: (hasAshnaMismatch) ? Colors.blue.shade50 : Colors.green.shade50,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: (hasAshnaMismatch) ? Colors.blue.shade200 : Colors.green.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.auto_fix_high, color: (hasAshnaMismatch) ? Colors.blue : Colors.green),
+                    const SizedBox(width: 8),
+                    Text(hasAshnaMismatch ? 'Critical Repair: Ashna Satheesh Data Mismatch' : 'Account Link: Restore Ashna\'s Name', 
+                      style: TextStyle(fontWeight: FontWeight.bold, color: (hasAshnaMismatch) ? Colors.blue : Colors.green)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  hasAshnaMismatch 
+                    ? 'Records found under OLD ID (fKy...). Move them to her NEW account to restore her full history.'
+                    : 'The data is moved, but her NAME isn\'t linked yet. Click below to restore her profile details.',
+                  style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _targetIdController,
+                  decoration: InputDecoration(
+                    labelText: 'Target Auth ID (New Account)',
+                    hintText: 'e.g. K9toyO2t...',
+                    fillColor: Colors.white,
+                    filled: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          const oldId = 'fKyKoacMTLY5v4lo6AfG';
+                          final newId = _targetIdController.text.trim();
+                          
+                          if (newId.isEmpty || newId == oldId) {
+                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter her new Login ID.')));
+                             return;
+                          }
+
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Synchronizing account databases...')));
+                          
+                          try {
+                            // Run the master migration
+                            final count = await FirebaseService.migrateUserRecords(oldId, newId);
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text('SUCCESS: Consolidated $count operations! Please Restart.'),
+                              backgroundColor: Colors.green,
+                              duration: const Duration(seconds: 5),
+                            ));
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Migration Error: $e')));
+                          }
+                        },
+                        icon: const Icon(Icons.sync),
+                        label: Text(hasAshnaMismatch ? 'Move History & Profile' : 'Restore Account Link'),
+                        style: ElevatedButton.styleFrom(backgroundColor: (hasAshnaMismatch) ? Colors.blue : Colors.green, foregroundColor: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                           await DiagnosticService.debugUserData();
+                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Diagnostic sent to Terminal.')));
+                        },
+                        icon: const Icon(Icons.bug_report),
+                        label: const Text('Diagnostics'),
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey, foregroundColor: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+        if (orphanStats.isNotEmpty && realUsers.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.amber.shade200),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.amber),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Detected orphaned or "Unknown" logs. Would you like to merge them?',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: realUsers.map((u) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ActionChip(
+                            label: Text('Merge into ${u.name}'),
+                            onPressed: () async {
+                               // Deep sweep
+                               int total = 0;
+                               for (var suspect in ['Unknown', 'unknown', '', 'null', 'undefined', 'NaN']) {
+                                  total += await FirebaseService.migrateUserRecords(suspect, u.uid);
+                                }
+                               ScaffoldMessenger.of(context).showSnackBar(
+                                 SnackBar(content: Text('Successfully consolidated $total records into ${u.name}.'))
+                               );
+                            },
+                          ),
+                        )).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
         _SectionHeader('Per-User Call & Lead Stats', Icons.people),
         const SizedBox(height: 10),
         ...statList.map((stat) => _UserStatCard(
               stat: stat,
-              onTap: () => onUserTap(stat.uid),
+              onTap: () => widget.onUserTap(stat.uid),
             )),
+            
+        const SizedBox(height: 40),
+        const Divider(),
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Text('ADMIN DANGER ZONE', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12)),
+        ),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.red.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.red.shade200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'FACTORY RESET DATABASE',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'This will PERMANENTLY DELETE all Calls, Leads, Notes, and Follow-ups from EVERYONE. This cannot be undone.',
+                style: TextStyle(fontSize: 11, color: Colors.redAccent),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    // Show confirmation
+                    bool? confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Are you 100% sure?'),
+                        content: const Text('Delete EVERY historical record? This is for STARTING FRESH only.'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('YES, WIPE ALL DATA', style: TextStyle(color: Colors.red))),
+                        ],
+                      ),
+                    );
+
+                    if (confirm == true) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('WIPING ENTIRE DATABASE...')));
+                      try {
+                        final count = await FirebaseService.factoryResetDatabase();
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text('RESET COMPLETE! $count records deleted. Database is now Empty.'),
+                          backgroundColor: Colors.red,
+                        ));
+                      } catch (e) {
+                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Reset Error: $e')));
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.delete_forever),
+                  label: const Text('WIPE ALL DATA (FACTORY RESET)'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 40),
       ],
     );
   }

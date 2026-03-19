@@ -1123,18 +1123,41 @@ class FirebaseService {
   }
 
   // Call Tracking & Categorization
-  static Future<void> recordCall(Map<String, dynamic> callData) async {
+  static Future<String?> recordCall(Map<String, dynamic> callData) async {
     try {
-      await _firestore.collection(callsCollection).add({
+      // 1. Get Current User Info for ID & Name redundancy (helps export/analytics)
+      final user = auth.FirebaseAuth.instance.currentUser;
+      String? staffName;
+      if (user != null) {
+        final profile = await _firestore.collection(usersCollection).doc(user.uid).get();
+        if (profile.exists) {
+          staffName = profile.data()?['name']?.toString();
+        }
+      }
+
+      // 2. Normalize timestamp
+      dynamic timestamp = callData['timestamp'];
+      if (timestamp != null) {
+        if (timestamp is int) {
+          timestamp = DateTime.fromMillisecondsSinceEpoch(timestamp);
+        }
+      } else {
+        timestamp = FieldValue.serverTimestamp();
+      }
+
+      // 3. Save with extended intelligence
+      final docRef = await _firestore.collection(callsCollection).add({
         ...callData,
-        'timestamp': callData['timestamp'] != null
-            ? (callData['timestamp'] is int
-                  ? DateTime.fromMillisecondsSinceEpoch(callData['timestamp'])
-                  : callData['timestamp'])
-            : FieldValue.serverTimestamp(),
+        'timestamp': timestamp,
+        'userId': user?.uid,
+        'userName': staffName ?? 'User (${user?.uid ?? "Offline"})',
+        'staff_id': user?.uid, // Redundant for easy filtering
+        'recorded_at': FieldValue.serverTimestamp(),
       });
+      return docRef.id;
     } catch (e) {
-      print('Record call error: $e');
+      debugPrint('Record call Intel Error: $e');
+      return null;
     }
   }
 
@@ -1289,12 +1312,22 @@ class FirebaseService {
   }
 
   static Future<void> addFollowUpToCall(String callId, Map<String, dynamic> followUpInfo) async {
+    // 1. Update the Call doc for local detail view
     await _firestore.collection(callsCollection).doc(callId).update({
       'follow_up': {
         ...followUpInfo,
         'scheduledAt': FieldValue.serverTimestamp(),
       },
       'hasFollowUp': true,
+    });
+
+    // 2. CRITICAL: Add to the main follow_ups collection so it shows in Follow-up Screen!
+    final user = auth.FirebaseAuth.instance.currentUser;
+    await _firestore.collection(followUpsCollection).add({
+      ...followUpInfo,
+      'call_id': callId,
+      'createdBy': user?.uid,
+      'createdAt': FieldValue.serverTimestamp(),
     });
   }
 

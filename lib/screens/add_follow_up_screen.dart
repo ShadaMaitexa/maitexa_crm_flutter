@@ -12,7 +12,8 @@ import '../utils/validation_utils.dart';
 class AddFollowUpScreen extends StatefulWidget {
   final String? phoneNumber;
   final String? contactName;
-  const AddFollowUpScreen({super.key, this.phoneNumber, this.contactName});
+  final String? callId;
+  const AddFollowUpScreen({super.key, this.phoneNumber, this.contactName, this.callId});
 
   @override
   State<AddFollowUpScreen> createState() => _AddFollowUpScreenState();
@@ -100,29 +101,32 @@ class _AddFollowUpScreenState extends State<AddFollowUpScreen> {
             ? Timestamp.fromDate(_followUpDate!)
             : null,
         'createdBy': currentUser.id,
+        'callerName': currentUser.name, // Intel redundancy
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
+        'call_id': widget.callId,
       };
 
+      // 1. Add to the main collection
       final result = await FirebaseService.addFollowUp(followUpData);
 
-      if (result != null) {
-        // Schedule notifications for the follow-up
-        if (_followUpDate != null) {
-          // await NotificationService().scheduleFollowUpReminder(...) // Fixed undefined method
-        }
+      // 2. If it came from a call, also link it in the call document!
+      if (widget.callId != null) {
+        await FirebaseService.addFollowUpToCall(widget.callId!, followUpData);
+      }
 
+      if (result != null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Follow-up added successfully!'),
+              content: Text('Follow-up scheduled and linked!'),
               backgroundColor: AppColors.success,
             ),
           );
           Navigator.of(context).pop(true);
         }
       } else {
-        throw Exception('Failed to add follow-up');
+        throw Exception('Failed to schedule');
       }
     } catch (e) {
       setState(() {

@@ -24,6 +24,7 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
   String? _selectedLabel;
+  String? _currentCallId;
   bool _isSaving = false;
   bool _isSavingNote = false;
 
@@ -79,7 +80,7 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
       );
 
       // Record the call with the name
-      await FirebaseService.recordCall({
+      _currentCallId = await FirebaseService.recordCall({
         'number': widget.callEntry.number,
         'name': _nameController.text.trim().isNotEmpty
             ? _nameController.text.trim()
@@ -202,6 +203,7 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
           contactName: _nameController.text.trim().isNotEmpty
               ? _nameController.text.trim()
               : widget.callEntry.name,
+          callId: _currentCallId,
         ),
       ),
     );

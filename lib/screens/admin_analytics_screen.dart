@@ -406,7 +406,7 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
                           margin: const EdgeInsets.only(top: 4),
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
+                            color: Colors.white.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Row(
@@ -425,7 +425,27 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
               ),
               IconButton(
                 onPressed: () {
-                  ExportService.exportCallsToCsv(_filteredCalls, 'Calls_${DateFormat('yyyyMMdd').format(DateTime.now())}');
+                  final enriched = _filteredCalls.map((c) {
+                    final uid = (c['userId'] ?? c['user_id'] ?? '').toString();
+                    final lead = _allLeads.firstWhere(
+                      (l) => l['id'] == c['lead_id'] || l['phone'] == c['phone_number'],
+                      orElse: () => <String, dynamic>{},
+                    );
+                    
+                    return {
+                      ...c,
+                      'userName': _findUserName(uid),
+                      'isHot': _isHotDeal(lead),
+                      'status': lead['status'] ?? c['status'] ?? '',
+                      'label': _leadLabel(lead).isEmpty ? (c['label'] ?? '') : _leadLabel(lead),
+                    };
+                  }).toList();
+
+                  final dateRangeStr = '${DateFormat('MMM d').format(_startDate)}-${DateFormat('MMM d').format(_endDate)}';
+                  final staffSuffix = _selectedUserId != null ? '_${_findUserName(_selectedUserId).replaceAll(' ', '_')}' : '_All_Staff';
+                  final fullFileName = 'CRM_Report${staffSuffix}_$dateRangeStr';
+                  
+                  ExportService.exportCallsToCsv(enriched, fullFileName);
                 },
                 icon: const Icon(Icons.file_download, color: Colors.white),
                 tooltip: 'Export to Excel',

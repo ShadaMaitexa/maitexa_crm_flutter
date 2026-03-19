@@ -20,9 +20,17 @@ class CallLogService {
     return await CallLog.get();
   }
 
-  static String normalizeSimId(String? simId) {
-    if (simId == null || simId.trim().isEmpty) return 'Unknown SIM';
-    final trimmed = simId.trim();
+  static String normalizeSimId(String? simDisplayName, {String? phoneAccountId}) {
+    String? id = simDisplayName ?? phoneAccountId;
+    if (id == null || id.trim().isEmpty) return 'Unknown SIM';
+    
+    // If account ID looks like a number, prioritize it for precise matching
+    final cleanId = id.replaceAll(RegExp(r'\s+'), '');
+    if (cleanId.length >= 10 && RegExp(r'^[0-9+]+$').hasMatch(cleanId)) {
+      return cleanId;
+    }
+
+    final trimmed = id.trim();
     if (trimmed == '0') return 'SIM 1';
     if (trimmed == '1') return 'SIM 2';
     final lower = trimmed.toLowerCase().replaceAll(' ', '');
@@ -39,9 +47,7 @@ class CallLogService {
 
     final Set<String> sims = {};
     for (var entry in logs) {
-      if (entry.simDisplayName != null && entry.simDisplayName!.isNotEmpty) {
-        sims.add(normalizeSimId(entry.simDisplayName));
-      }
+      sims.add(normalizeSimId(entry.simDisplayName, phoneAccountId: entry.phoneAccountId));
     }
 
     if (sims.isEmpty) return ['SIM 1', 'SIM 2'];

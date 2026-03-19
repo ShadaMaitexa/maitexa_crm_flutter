@@ -29,6 +29,7 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
   String? _error;
 
   String? _selectedSimFilter;
+  String? _userPhone;
   List<String> _simOptions = [];
   bool _simSelected = false;
 
@@ -84,27 +85,36 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
 
       String? autoSelectedSim;
       if (userPhone != null && userPhone.isNotEmpty) {
-         // Attempt to find a SIM that looks like the user's number
+         // Deep scan: Match by SIM name OR internal account ID (which normalizeSimId now handles)
          for (var option in _simOptions) {
-            final normOption = option.toLowerCase().replaceAll(' ', '');
+            final normOption = option.toLowerCase().replaceAll(' ', '').replaceAll('+', '');
             if (normOption.contains(userPhone)) {
+              autoSelectedSim = option;
+              break;
+            }
+            
+            // Search all logs for this SIM to check if its internal ID matches
+            final matchId = logsList.any((l) => 
+               CallLogService.normalizeSimId(l.simDisplayName, phoneAccountId: l.phoneAccountId) == option &&
+               (l.phoneAccountId ?? '').replaceAll(RegExp(r'\s+'), '').contains(userPhone!)
+            );
+            if (matchId) {
               autoSelectedSim = option;
               break;
             }
          }
       }
 
-      // If no number match but only 1 SIM, or 1 non-Unknown SIM, take it
-      if (autoSelectedSim == null && _simOptions.isNotEmpty) {
-        final realSims = _simOptions.where((s) => s != 'Unknown SIM').toList();
-        if (realSims.length == 1) {
-          autoSelectedSim = realSims.first;
-        }
+      // If no match found, only auto-select if there is EXACTLY one choice available
+      // This prevents choosing the wrong SIM on dual-SIM devices where 1 is "Unknown"
+      if (autoSelectedSim == null && _simOptions.length == 1) {
+        autoSelectedSim = _simOptions.first;
       }
 
       setState(() {
         _allCallLogs = logs;
         _isLoading = false;
+        _userPhone = userPhone; // Save to state for labeling
         if (autoSelectedSim != null) {
           _selectedSimFilter = autoSelectedSim;
           _simSelected = true;
@@ -143,77 +153,80 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
       bool typeMatch = (log.callType == CallType.incoming || log.callType == CallType.outgoing);
       if (!typeMatch) return false;
 
-      final accId = log.phoneAccountId ?? '';
-      final simName = log.simDisplayName ?? '';
-      
-      // Normalize current log SIM info
-      String currentSim;
-      if (accId == '0' || accId == '1') {
-        currentSim = CallLogService.normalizeSimId(accId);
-      } else {
-        currentSim = CallLogService.normalizeSimId(simName);
-      }
+      // Use the exact SAME normalization as getAvailableSims
+      final currentSim = CallLogService.normalizeSimId(
+        log.simDisplayName, 
+        phoneAccountId: log.phoneAccountId
+      );
 
-      // Exact match with our standardized option
+      // Exact match with our selected standardized option
       return currentSim == _selectedSimFilter;
     }).toList();
   }
 
   void _showSimSelectionModal() {
+    // Find the latest number called/received on each SIM to show as a preview
+    final Map<String, String> simPreviews = {};
+    for (var sim in _simOptions) {
+      try {
+        final lastCall = _allCallLogs.firstWhere(
+          (l) => CallLogService.normalizeSimId(l.simDisplayName, phoneAccountId: l.phoneAccountId) == sim
+        );
+        simPreviews[sim] = lastCall.number ?? 'No recent calls';
+      } catch (e) {
+        simPreviews[sim] = 'No recent calls';
+      }
+    }
+
     showDialog(
       context: context,
-      barrierDismissible: false, // Mandatory
+      barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.sim_card_alert, color: Colors.orange),
+            Icon(Icons.sim_card_alert, color: AppColors.primary),
             SizedBox(width: 8),
-            Text('Select SIM for Call Logs'),
+            Text('Select SIM Slot'),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Choose which SIM\'s call logs to view:'),
+            const Text('Choose the SIM card used for your business calls:'),
             const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value:
-                      _selectedSimFilter ??
-                      (_simOptions.isNotEmpty ? _simOptions.first : null),
-                  isExpanded: true,
-                  items: _simOptions
-                      .map(
-                        (sim) => DropdownMenuItem(
-                          value: sim,
-                          child: Row(
-                            children: [
-                              Icon(Icons.sim_card, color: Colors.blue),
-                              SizedBox(width: 8),
-                              Text(sim),
-                            ],
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (String? value) {
+            ..._simOptions.map((sim) {
+              final isMatch = _userPhone != null && 
+                             sim.toLowerCase().replaceAll(' ', '').contains(_userPhone!);
+              
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: isMatch ? AppColors.primary.withOpacity(0.05) : Colors.grey.shade50,
+                  border: Border.all(color: isMatch ? AppColors.primary : Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: ListTile(
+                  leading: Icon(Icons.sim_card, color: isMatch ? AppColors.primary : Colors.grey),
+                  title: Text(
+                    isMatch ? '$sim (Business Number)' : sim,
+                    style: TextStyle(fontWeight: isMatch ? FontWeight.bold : FontWeight.normal),
+                  ),
+                  subtitle: Text('Last call: ${simPreviews[sim]}', style: const TextStyle(fontSize: 11)),
+                  onTap: () {
                     Navigator.pop(dialogContext);
-                    if (value != null) {
-                      setState(() {
-                        _selectedSimFilter = value;
-                        _simSelected = true;
-                      });
-                      _applySimFilter();
-                    }
+                    setState(() {
+                      _selectedSimFilter = sim;
+                      _simSelected = true;
+                    });
+                    _applySimFilter();
                   },
                 ),
-              ),
+              );
+            }).toList(),
+            const SizedBox(height: 16),
+            const Text(
+              'Tips: If you don\'t see your number, check which slot has your latest business calls.',
+              style: TextStyle(fontSize: 10, color: Colors.grey, fontStyle: FontStyle.italic),
             ),
           ],
         ),

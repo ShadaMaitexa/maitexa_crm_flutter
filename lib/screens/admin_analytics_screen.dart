@@ -265,6 +265,7 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
       _leadLabel(l).toLowerCase().contains('hot') || (l['status'] ?? '').toString().toLowerCase().contains('hot');
 
   bool _isConverted(Map l) =>
+      l['isConverted'] == true ||
       (l['status'] ?? '').toString().toLowerCase().contains('convert');
 
   bool _isFollowUp(Map l) =>
@@ -272,8 +273,6 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
 
   String _findUserName(String? uid) {
     if (uid == null || uid.isEmpty || uid == 'null' || uid == 'undefined') return 'Unknown';
-    if (uid == 'K9toyO2tOmcoDjLtGolHnJcmOcr2') return 'Ashna (Primary Account)';
-    if (uid == 'fKyKoacMTLY5v4lo6AfG') return 'Ashna (Old Account - Mismatched)';
     
     try {
       final user = _allUsers.firstWhere((u) => u['id'] == uid, orElse: () => {});
@@ -318,6 +317,7 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
       child: Column(
               children: [
                 _buildDateFilter(),
+                _buildQuickStatsStrip(),
                 _buildTabBar(),
                 Expanded(
                   child: TabBarView(
@@ -432,12 +432,33 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
                       orElse: () => <String, dynamic>{},
                     );
                     
+                    // Find latest follow up for this contact
+                    final contactPhone = (c['phone_number'] ?? c['number'] ?? '').toString();
+                    final followUpMatches = _allFollowUps.where((f) => 
+                      (f['phoneNumber'] ?? f['phone'] ?? '').toString() == contactPhone
+                    ).toList()..sort((a,b) {
+                        final aD = _tsToDate(a['followUpDate']);
+                        final bD = _tsToDate(b['followUpDate']);
+                        if (aD == null) return 1;
+                        if (bD == null) return -1;
+                        return bD.compareTo(aD);
+                    });
+
+                    final latestFU = followUpMatches.isNotEmpty ? followUpMatches.first : null;
+                    final fuDate = latestFU != null ? _tsToDate(latestFU['followUpDate']) : null;
+                    final fuStaff = latestFU != null ? _findUserName((latestFU['createdBy'] ?? latestFU['userId'])?.toString()) : 'None';
+                    final fuNote = latestFU != null ? (latestFU['notes'] ?? latestFU['note'] ?? '').toString() : '';
+
                     return {
                       ...c,
                       'userName': _findUserName(uid),
                       'isHot': _isHotDeal(lead),
+                      'isConverted': _isConverted(lead),
                       'status': lead['status'] ?? c['status'] ?? '',
                       'label': _leadLabel(lead).isEmpty ? (c['label'] ?? '') : _leadLabel(lead),
+                      'followUpDate': fuDate != null ? DateFormat('MMM d, yyyy').format(fuDate) : 'None',
+                      'followUpStaff': fuStaff,
+                      'followUpNote': fuNote,
                     };
                   }).toList();
 
@@ -519,23 +540,89 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
     );
   }
 
-  Widget _buildTabBar() {
+  Widget _buildQuickStatsStrip() {
+    final callsCount = _filteredCalls.length;
+    final leadsCount = _filteredLeads.length;
+    final hotDeals = _filteredLeads.where(_isHotDeal).length;
+    final followUps = _filteredFollowUps.length;
+
     return Container(
       color: AppColors.primary,
+      padding: const EdgeInsets.only(bottom: 12),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            _QuickStatItem('Calls', '$callsCount', Icons.call),
+            const SizedBox(width: 12),
+            _QuickStatItem('Leads', '$leadsCount', Icons.people),
+            const SizedBox(width: 12),
+            _QuickStatItem('Hot', '$hotDeals', Icons.whatshot),
+            const SizedBox(width: 12),
+            _QuickStatItem('Scheduled', '$followUps', Icons.event_note),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _QuickStatItem(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white70, size: 14),
+          const SizedBox(width: 6),
+          Text(
+            value,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 9, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(20),
+          bottomRight: Radius.circular(20),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
       child: TabBar(
         controller: _tabController,
-        indicatorColor: Colors.white,
-        indicatorWeight: 3,
-        labelColor: Colors.white,
-        unselectedLabelColor: Colors.white60,
-        labelStyle:
-            const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+        indicatorColor: AppColors.primary,
+        indicatorWeight: 4,
+        indicatorPadding: const EdgeInsets.symmetric(horizontal: 16),
+        labelColor: AppColors.primary,
+        unselectedLabelColor: Colors.grey.shade400,
+        labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
         tabs: const [
-          Tab(icon: Icon(Icons.call, size: 18), text: 'Calls'),
-          Tab(icon: Icon(Icons.people, size: 18), text: 'Leads'),
-          Tab(icon: Icon(Icons.local_fire_department, size: 18), text: 'Hot'),
-          Tab(icon: Icon(Icons.bar_chart, size: 18), text: 'By User'),
-          Tab(icon: Icon(Icons.calendar_month, size: 18), text: 'Follow-Ups'),
+          Tab(icon: Icon(Icons.call_outlined, size: 20), text: 'Calls'),
+          Tab(icon: Icon(Icons.people_outline, size: 20), text: 'Leads'),
+          Tab(icon: Icon(Icons.whatshot_outlined, size: 20), text: 'Hot'),
+          Tab(icon: Icon(Icons.bar_chart_outlined, size: 20), text: 'Performance'),
+          Tab(icon: Icon(Icons.event_note_outlined, size: 20), text: 'Schedules'),
         ],
       ),
     );
@@ -1240,15 +1327,6 @@ class _UserStatsTab extends StatefulWidget {
 }
 
 class _UserStatsTabState extends State<_UserStatsTab> {
-  final TextEditingController _targetIdController = 
-      TextEditingController(text: 'K9toyO2tOmcoDjLtGolHnJcmOcr2');
-
-  @override
-  void dispose() {
-    _targetIdController.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     // Access widget properties via widget.xxx
@@ -1261,6 +1339,7 @@ class _UserStatsTabState extends State<_UserStatsTab> {
       if (type == 'Incoming') userStats[uid]!.incoming++;
       if (type == 'Outgoing') userStats[uid]!.outgoing++;
       if (type == 'Missed') userStats[uid]!.missed++;
+      if (widget.isConverted(call)) userStats[uid]!.converted++;
       userStats[uid]!.totalCalls++;
     }
 
@@ -1310,227 +1389,23 @@ class _UserStatsTabState extends State<_UserStatsTab> {
     }).toList()
       ..sort((a, b) => b.totalCalls.compareTo(a.totalCalls));
 
-    final orphanStats = statList.where((s) => s.name.contains('User (')).toList();
-    final realUsers = statList.where((s) => !s.name.contains('User (')).toList();
-
-    final bool hasAshnaMismatch = userStats.containsKey('fKyKoacMTLY5v4lo6AfG');
-    // Also consider it a mismatch if we have a "User (K9t...)" but her name is stuck elsewhere
-    final bool hasUnnamedAshna = userStats.containsKey('K9toyO2tOmcoDjLtGolHnJcmOcr2') && 
-                                widget.findUserName('K9toyO2tOmcoDjLtGolHnJcmOcr2').contains('User (');
-
     return ListView(
       padding: const EdgeInsets.all(16),
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
-        if (hasAshnaMismatch || hasUnnamedAshna)
-          Container(
-            margin: const EdgeInsets.only(bottom: 20),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: (hasAshnaMismatch) ? Colors.blue.shade50 : Colors.green.shade50,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: (hasAshnaMismatch) ? Colors.blue.shade200 : Colors.green.shade200),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.auto_fix_high, color: (hasAshnaMismatch) ? Colors.blue : Colors.green),
-                    const SizedBox(width: 8),
-                    Text(hasAshnaMismatch ? 'Critical Repair: Ashna Satheesh Data Mismatch' : 'Account Link: Restore Ashna\'s Name', 
-                      style: TextStyle(fontWeight: FontWeight.bold, color: (hasAshnaMismatch) ? Colors.blue : Colors.green)),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  hasAshnaMismatch 
-                    ? 'Records found under OLD ID (fKy...). Move them to her NEW account to restore her full history.'
-                    : 'The data is moved, but her NAME isn\'t linked yet. Click below to restore her profile details.',
-                  style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _targetIdController,
-                  decoration: InputDecoration(
-                    labelText: 'Target Auth ID (New Account)',
-                    hintText: 'e.g. K9toyO2t...',
-                    fillColor: Colors.white,
-                    filled: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          const oldId = 'fKyKoacMTLY5v4lo6AfG';
-                          final newId = _targetIdController.text.trim();
-                          
-                          if (newId.isEmpty || newId == oldId) {
-                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter her new Login ID.')));
-                             return;
-                          }
-
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Synchronizing account databases...')));
-                          
-                          try {
-                            // Run the master migration
-                            final count = await FirebaseService.migrateUserRecords(oldId, newId);
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text('SUCCESS: Consolidated $count operations! Please Restart.'),
-                              backgroundColor: Colors.green,
-                              duration: const Duration(seconds: 5),
-                            ));
-                          } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Migration Error: $e')));
-                          }
-                        },
-                        icon: const Icon(Icons.sync),
-                        label: Text(hasAshnaMismatch ? 'Move History & Profile' : 'Restore Account Link'),
-                        style: ElevatedButton.styleFrom(backgroundColor: (hasAshnaMismatch) ? Colors.blue : Colors.green, foregroundColor: Colors.white),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                           await DiagnosticService.debugUserData();
-                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Diagnostic sent to Terminal.')));
-                        },
-                        icon: const Icon(Icons.bug_report),
-                        label: const Text('Diagnostics'),
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey, foregroundColor: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-        if (orphanStats.isNotEmpty && realUsers.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.amber.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.amber.shade200),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.warning_amber_rounded, color: Colors.amber),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Detected orphaned or "Unknown" logs. Would you like to merge them?',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: realUsers.map((u) => Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ActionChip(
-                            label: Text('Merge into ${u.name}'),
-                            onPressed: () async {
-                               // Deep sweep
-                               int total = 0;
-                               for (var suspect in ['Unknown', 'unknown', '', 'null', 'undefined', 'NaN']) {
-                                  total += await FirebaseService.migrateUserRecords(suspect, u.uid);
-                                }
-                               ScaffoldMessenger.of(context).showSnackBar(
-                                 SnackBar(content: Text('Successfully consolidated $total records into ${u.name}.'))
-                               );
-                            },
-                          ),
-                        )).toList(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        _SectionHeader('Per-User Call & Lead Stats', Icons.people),
-        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _SectionHeader('Staff Performance', Icons.analytics_outlined),
+            const Icon(Icons.info_outline, color: Colors.blueGrey, size: 20),
+          ],
+        ),
+        const SizedBox(height: 12),
         ...statList.map((stat) => _UserStatCard(
               stat: stat,
               onTap: () => widget.onUserTap(stat.uid),
             )),
-            
-        const SizedBox(height: 40),
-        const Divider(),
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 8),
-          child: Text('ADMIN DANGER ZONE', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12)),
-        ),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.red.shade50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.red.shade200),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'FACTORY RESET DATABASE',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'This will PERMANENTLY DELETE all Calls, Leads, Notes, and Follow-ups from EVERYONE. This cannot be undone.',
-                style: TextStyle(fontSize: 11, color: Colors.redAccent),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    // Show confirmation
-                    bool? confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Are you 100% sure?'),
-                        content: const Text('Delete EVERY historical record? This is for STARTING FRESH only.'),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('YES, WIPE ALL DATA', style: TextStyle(color: Colors.red))),
-                        ],
-                      ),
-                    );
-
-                    if (confirm == true) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('WIPING ENTIRE DATABASE...')));
-                      try {
-                        final count = await FirebaseService.factoryResetDatabase();
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text('RESET COMPLETE! $count records deleted. Database is now Empty.'),
-                          backgroundColor: Colors.red,
-                        ));
-                      } catch (e) {
-                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Reset Error: $e')));
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.delete_forever),
-                  label: const Text('WIPE ALL DATA (FACTORY RESET)'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 40),
+        const SizedBox(height: 100), // Better bottom spacing
       ],
     );
   }

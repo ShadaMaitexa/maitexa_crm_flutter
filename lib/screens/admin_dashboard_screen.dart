@@ -11,6 +11,7 @@ import '../screens/splash_screen.dart';
 import '../screens/role_management_screen.dart';
 import '../utils/validation_utils.dart';
 import 'admin_analytics_screen.dart';
+import 'label_management_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -571,89 +572,184 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
 
-    // Define screens based on current index
     final List<Widget> screens = [
       _buildUserManagementScreen(isTablet),
       const RoleManagementScreen(),
+      const LabelManagementScreen(),
       const AdminAnalyticsScreen(),
     ];
 
-    final List<String> titles = [
-      'User Management',
-      'Role Management',
-      'Analytics & Reports',
+    final titles = [
+      'Staff Management',
+      'System Roles',
+      'Categorization',
+      'Enterprise Insights',
     ];
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC), // Modern off-white background
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
+        centerTitle: false,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Admin Dashboard',
+              'MAITEXA CRM',
               style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: Colors.white),
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                letterSpacing: 1.2,
+                color: Colors.white,
+              ),
             ),
             Text(
-              titles[_currentIndex],
-              style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.white70,
-                  fontWeight: FontWeight.normal),
+              titles[_currentIndex].toUpperCase(),
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.white.withOpacity(0.7),
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.5,
+              ),
             ),
           ],
         ),
         actions: [
           IconButton(
-            onPressed: _showAdminCredentials,
-            icon: const Icon(Icons.info_outline),
-            tooltip: 'Admin Credentials',
-          ),
-          IconButton(
-            onPressed: () {
-              if (_currentIndex == 0) _loadUsers();
-            },
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
+            onPressed: () => _showAdminCredentials(),
+            icon: const Icon(Icons.shield_outlined, size: 20),
+            tooltip: 'Security Status',
           ),
           IconButton(
             onPressed: _logout,
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
+            icon: const Icon(Icons.logout_rounded, size: 20),
+            tooltip: 'Secure Logout',
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Global status summary banner (Dynamic based on DB state)
+          if (_currentIndex == 0) _buildGlobalStatsBanner(isTablet),
+          Expanded(
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFFF8FAFC),
+              ),
+              child: IndexedStack(
+                index: _currentIndex,
+                children: screens,
+              ),
+            ),
           ),
         ],
       ),
-      body: screens[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.textSecondary,
-        type: BottomNavigationBarType.fixed,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.people_outline),
-              activeIcon: Icon(Icons.people),
-              label: 'Users'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.work_outline),
-              activeIcon: Icon(Icons.work),
-              label: 'Roles'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.bar_chart_outlined),
-              activeIcon: Icon(Icons.bar_chart),
-              label: 'Analytics'),
-        ],
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildNavItem(0, Icons.people_alt_outlined, Icons.people_alt, 'Staff'),
+                _buildNavItem(1, Icons.verified_user_outlined, Icons.verified_user, 'Roles'),
+                _buildNavItem(2, Icons.label_important_outline, Icons.label_important, 'Labels'),
+                _buildNavItem(3, Icons.insights_outlined, Icons.insights, 'Insights'),
+              ],
+            ),
+          ),
+        ),
       ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData outline, IconData solid, String label) {
+    bool isSelected = _currentIndex == index;
+    return GestureDetector(
+      onTap: () => setState(() => _currentIndex = index),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary.withOpacity(0.08) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? solid : outline,
+              color: isSelected ? AppColors.primary : Colors.blueGrey.shade300,
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? AppColors.primary : Colors.blueGrey.shade300,
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlobalStatsBanner(bool isTablet) {
+    int activeCount = _users.where((u) => u.isActive).length;
+    return Container(
+      width: double.infinity,
+      color: AppColors.primary,
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.15)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+             _BannerStat(label: 'TOTAL STAFF', value: '${_users.length}'),
+             _BannerStat(label: 'ACTIVE', value: '$activeCount'),
+             _BannerStat(label: 'OFFLINE', value: '${_users.length - activeCount}'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BannerStat extends StatelessWidget {
+  final String label;
+  final String value;
+  const _BannerStat({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+        Text(label, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 9, fontWeight: FontWeight.bold)),
+      ],
     );
   }
 }

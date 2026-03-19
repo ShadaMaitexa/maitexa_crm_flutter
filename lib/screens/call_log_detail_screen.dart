@@ -27,6 +27,8 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
   String? _currentCallId;
   bool _isSaving = false;
   bool _isSavingNote = false;
+  bool _isConverted = false;
+  bool _isTogglingConversion = false;
 
   // Default labels (same as in todays_calls_screen.dart)
   final List<String> _defaultLabels = [
@@ -43,6 +45,61 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
     super.initState();
     _nameController.text = widget.callEntry.name ?? '';
     _loadExistingLabel();
+    _loadConversionState();
+  }
+
+  Future<void> _loadConversionState() async {
+    if (widget.callEntry.number == null || widget.callEntry.timestamp == null) return;
+    final callId = await FirebaseService.findExistingCallRecord(widget.callEntry.number!, widget.callEntry.timestamp!);
+    if (callId != null) {
+      final doc = await FirebaseService.firestore.collection(FirebaseService.callsCollection).doc(callId).get();
+      if (mounted) {
+        setState(() {
+          _isConverted = doc.data()?['isConverted'] == true;
+          _currentCallId = callId;
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleConversion() async {
+    if (widget.callEntry.number == null || widget.callEntry.timestamp == null || _isTogglingConversion) return;
+    
+    setState(() => _isTogglingConversion = true);
+    try {
+      if (_currentCallId == null) {
+        _currentCallId = await FirebaseService.findExistingCallRecord(widget.callEntry.number!, widget.callEntry.timestamp!);
+      }
+
+      final newValue = !_isConverted;
+
+      if (_currentCallId == null) {
+        _currentCallId = await FirebaseService.recordCall({
+          'phone_number': widget.callEntry.number,
+          'name': widget.callEntry.name ?? 'Unknown',
+          'duration': widget.callEntry.duration,
+          'timestamp': widget.callEntry.timestamp,
+          'isConverted': newValue,
+        });
+      } else {
+        await FirebaseService.updateCallConversion(_currentCallId!, newValue);
+      }
+
+      if (mounted) {
+        setState(() {
+          _isConverted = newValue;
+          _isTogglingConversion = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(newValue ? 'Marked as Converted!' : 'Conversion Removed'),
+            backgroundColor: newValue ? AppColors.success : AppColors.textSecondary,
+          ),
+        );
+      }
+    } catch (e) {
+       if (mounted) setState(() => _isTogglingConversion = false);
+    }
   }
 
   Future<void> _loadExistingLabel() async {
@@ -354,6 +411,11 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
             ),
 
             const SizedBox(height: 24),
+            
+            // Deal Status Section
+            _buildConversionToggle(),
+
+            const SizedBox(height: 24),
 
             // Add/Save Name Section
             const Text(
@@ -595,6 +657,73 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
       default:
         return AppColors.textSecondary;
     }
+  }
+
+  Widget _buildConversionToggle() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _isConverted ? Colors.green.withOpacity(0.05) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _isConverted ? Colors.green.withOpacity(0.3) : Colors.grey.shade200,
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _isConverted ? Colors.green : Colors.grey.shade100,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              _isConverted ? Icons.check_circle : Icons.radio_button_off,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Deal Status',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.textSecondary,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                Text(
+                  _isConverted ? 'CONVERTED' : 'UNCONVERTED',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: _isConverted ? Colors.green[700] : AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: _isConverted,
+            activeColor: Colors.green,
+            onChanged: _isTogglingConversion ? null : (v) => _toggleConversion(),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showWhatsAppSelectionDialog(String phone, LeadProvider provider) {

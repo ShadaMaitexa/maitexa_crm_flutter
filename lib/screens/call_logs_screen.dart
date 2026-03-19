@@ -23,7 +23,9 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
   Iterable<CallLogEntry> _allCallLogs = [];
   Iterable<CallLogEntry> _callLogs = [];
   Map<String, String> _numberCategories = {};
+  Map<String, bool> _convertedCalls = {}; // Track conversion status by number+timestamp
   bool _isLoading = true;
+  bool _isConverting = false;
   String? _error;
 
   String? _selectedSimFilter;
@@ -78,6 +80,7 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
 
       // Load categories in background without blocking UI
       _loadCategoriesInBackground(logs);
+      _loadConversionStatusInBackground(logs);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -248,6 +251,76 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Number $number categorized as $category')),
     );
+  }
+
+  Future<void> _loadConversionStatusInBackground(Iterable<CallLogEntry> logs) async {
+    // Only check the first 50 logs for conversion to save on reads initially
+    final checkLogs = logs.take(50);
+    for (var entry in checkLogs) {
+      if (entry.number == null || entry.timestamp == null) continue;
+      final callId = await FirebaseService.findExistingCallRecord(entry.number!, entry.timestamp!);
+      if (callId != null) {
+        final doc = await FirebaseService.firestore.collection(FirebaseService.callsCollection).doc(callId).get();
+        final data = doc.data();
+        if (data != null && data['isConverted'] == true && mounted) {
+          setState(() {
+            _convertedCalls['${entry.number}_${entry.timestamp}'] = true;
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> _toggleConverted(CallLogEntry entry) async {
+    if (entry.number == null || entry.timestamp == null || _isConverting) return;
+
+    final key = '${entry.number}_${entry.timestamp}';
+    final wasConverted = _convertedCalls[key] ?? false;
+
+    setState(() => _isConverting = true);
+    try {
+      String? callId = await FirebaseService.findExistingCallRecord(entry.number!, entry.timestamp!);
+      
+      if (callId == null) {
+        // Record it first if it doesn't exist
+        callId = await FirebaseService.recordCall({
+          'phone_number': entry.number,
+          'name': entry.name ?? 'Unknown',
+          'duration': entry.duration,
+          'timestamp': entry.timestamp,
+          'call_type': _getCallTypeString(entry.callType),
+          'isConverted': !wasConverted,
+        });
+      } else {
+        await FirebaseService.updateCallConversion(callId, !wasConverted);
+      }
+
+      if (mounted) {
+        setState(() {
+          _convertedCalls[key] = !wasConverted;
+          _isConverting = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(!wasConverted ? 'Marked as Converted!' : 'Removed Conversion'),
+            backgroundColor: !wasConverted ? AppColors.success : AppColors.textSecondary,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isConverting = false);
+    }
+  }
+
+  String _getCallTypeString(CallType? type) {
+    switch (type) {
+      case CallType.incoming: return 'incoming';
+      case CallType.outgoing: return 'outgoing';
+      case CallType.missed: return 'missed';
+      case CallType.rejected: return 'rejected';
+      default: return 'other';
+    }
   }
 
   void _showCategoryDialog(CallLogEntry entry) {
@@ -725,6 +798,33 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
                                           ),
                                           side: const BorderSide(
                                             color: Color(0xFF25D366),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => _toggleConverted(entry),
+                                        icon: Icon(
+                                          _convertedCalls['${entry.number}_${entry.timestamp}'] == true 
+                                            ? Icons.check_circle 
+                                            : Icons.check_circle_outline, 
+                                          size: 16
+                                        ),
+                                        label: const Text("Converted"),
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 8,
+                                          ),
+                                          visualDensity: VisualDensity.compact,
+                                          foregroundColor: _convertedCalls['${entry.number}_${entry.timestamp}'] == true 
+                                            ? AppColors.success 
+                                            : AppColors.textSecondary,
+                                          side: BorderSide(
+                                            color: _convertedCalls['${entry.number}_${entry.timestamp}'] == true 
+                                              ? AppColors.success 
+                                              : Colors.grey.shade300,
                                           ),
                                         ),
                                       ),

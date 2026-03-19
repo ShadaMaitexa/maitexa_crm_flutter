@@ -1311,6 +1311,26 @@ class FirebaseService {
     });
   }
 
+  static Future<void> updateCallConversion(String callId, bool isConverted) async {
+    await _firestore.collection(callsCollection).doc(callId).update({
+      'isConverted': isConverted,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  static Future<String?> findExistingCallRecord(String number, int timestamp) async {
+    final DateTime dt = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    final snap = await _firestore.collection(callsCollection)
+        .where('phone_number', isEqualTo: number)
+        .where('timestamp', isGreaterThanOrEqualTo: dt.subtract(const Duration(seconds: 1)))
+        .where('timestamp', isLessThanOrEqualTo: dt.add(const Duration(seconds: 1)))
+        .limit(1)
+        .get();
+    
+    if (snap.docs.isNotEmpty) return snap.docs.first.id;
+    return null;
+  }
+
   static Future<void> addFollowUpToCall(String callId, Map<String, dynamic> followUpInfo) async {
     // 1. Update the Call doc for local detail view
     await _firestore.collection(callsCollection).doc(callId).update({

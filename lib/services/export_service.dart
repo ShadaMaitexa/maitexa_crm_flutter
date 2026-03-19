@@ -15,8 +15,8 @@ class ExportService {
 
     final List<String> csvRows = [];
     
-    // Expanded Header for full business reporting
-    csvRows.add('Date,Time,Type,Number,Label,Status,Duration(s),User,Hot Deal,Lead ID,Notes');
+    // Intelligence-rich Header for business reporting
+    csvRows.add('Date,Time,Type,Number,Label,Status,Duration(s),Staff,Hot Deal,Converted,Follow-Up,FU Staff,FU Note,Notes');
 
     for (var call in calls) {
       final dateObj = call['timestamp'] ?? call['created_at'] ?? call['createdAt'];
@@ -34,7 +34,10 @@ class ExportService {
       final duration = call['duration'] ?? 0;
       final userName = call['userName'] ?? 'Unknown';
       final isHot = (call['isHot'] == true || label.toString().toLowerCase().contains('hot')) ? 'YES' : 'NO';
-      final leadId = call['lead_id'] ?? call['leadId'] ?? '';
+      final isConverted = (call['isConverted'] == true) ? 'YES' : 'NO';
+      final followUp = call['followUpDate'] ?? 'None';
+      final fuStaff = call['followUpStaff'] ?? 'None';
+      final fuNote = call['followUpNote'] ?? '';
       
       // Combine notes
       String notesStr = '';
@@ -51,8 +54,11 @@ class ExportService {
       final cleanNotes = notesStr.replaceAll('"', '""').replaceAll(',', ';').replaceAll('\n', ' ');
       final cleanLabel = label.toString().replaceAll('"', '""').replaceAll(',', ';');
       final cleanName = userName.toString().replaceAll('"', '""').replaceAll(',', ';');
+      final cleanFollowUp = followUp.toString().replaceAll('"', '""').replaceAll(',', ';');
+      final cleanFUStaff = fuStaff.toString().replaceAll('"', '""').replaceAll(',', ';');
+      final cleanFUNote = fuNote.toString().replaceAll('"', '""').replaceAll(',', ';');
       
-      csvRows.add('$dateStr,$timeStr,$type,$number,"$cleanLabel","$status",$duration,"$cleanName",$isHot,"$leadId","$cleanNotes"');
+      csvRows.add('$dateStr,$timeStr,$type,$number,"$cleanLabel","$status",$duration,"$cleanName",$isHot,$isConverted,"$cleanFollowUp","$cleanFUStaff","$cleanFUNote","$cleanNotes"');
     }
 
     final String csvContent = csvRows.join('\r\n'); // Use CRLF for better Excel compatibility

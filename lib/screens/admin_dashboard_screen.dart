@@ -995,10 +995,19 @@ class _AddUserDialogState extends State<AddUserDialog> {
                     }
 
                     if (mounted) {
+                      String phoneNumber = _phoneController.text.trim().replaceAll(RegExp(r'\s+'), '');
+                      if (phoneNumber.isNotEmpty && !phoneNumber.startsWith('+')) {
+                        if (phoneNumber.length == 10) {
+                          phoneNumber = '+91$phoneNumber';
+                        } else if (phoneNumber.length == 12 && phoneNumber.startsWith('91')) {
+                          phoneNumber = '+$phoneNumber';
+                        }
+                      }
+                      
                       Navigator.of(context).pop({
                         'name': _nameController.text.trim(),
                         'email': _emailController.text.trim(),
-                        'phone': _phoneController.text.trim(),
+                        'phone': phoneNumber,
                         'password': _passwordController.text,
                         'role': _selectedRole,
                       });

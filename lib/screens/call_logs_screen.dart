@@ -63,18 +63,59 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
       }
 
       final logs = await CallLog.query(); // Direct call_log package access
+      final logsList = logs.toList();
 
-      // Get standardized SIMs and show selection modal
-      _simOptions = await CallLogService.getAvailableSims();
+      // Get standardized SIMs
+      _simOptions = await CallLogService.getAvailableSims(logs: logsList);
+
+      // 1. Fetch current user's phone for auto-SIM-detection
+      String? userPhone;
+      final user = FirebaseService.authInstance.currentUser;
+      if (user != null) {
+        final profile = await FirebaseService.firestore.collection(FirebaseService.usersCollection).doc(user.uid).get();
+        if (profile.exists) {
+          userPhone = profile.data()?['phone']?.toString().replaceAll(RegExp(r'\s+'), '');
+          // Keep only last 10 digits for matching
+          if (userPhone != null && userPhone.length > 10) {
+            userPhone = userPhone.substring(userPhone.length - 10);
+          }
+        }
+      }
+
+      String? autoSelectedSim;
+      if (userPhone != null && userPhone.isNotEmpty) {
+         // Attempt to find a SIM that looks like the user's number
+         for (var option in _simOptions) {
+            final normOption = option.toLowerCase().replaceAll(' ', '');
+            if (normOption.contains(userPhone)) {
+              autoSelectedSim = option;
+              break;
+            }
+         }
+      }
+
+      // If no number match but only 1 SIM, or 1 non-Unknown SIM, take it
+      if (autoSelectedSim == null && _simOptions.isNotEmpty) {
+        final realSims = _simOptions.where((s) => s != 'Unknown SIM').toList();
+        if (realSims.length == 1) {
+          autoSelectedSim = realSims.first;
+        }
+      }
 
       setState(() {
         _allCallLogs = logs;
-        _simSelected = false; // Force selection
         _isLoading = false;
+        if (autoSelectedSim != null) {
+          _selectedSimFilter = autoSelectedSim;
+          _simSelected = true;
+          _applySimFilter();
+        } else {
+          _simSelected = false; // Show modal if match fails
+        }
       });
 
-      // Show upfront SIM selection modal
-      if (mounted && _simOptions.isNotEmpty) {
+      // Show upfront SIM selection modal if nothing auto-selected
+      if (mounted && _simOptions.isNotEmpty && autoSelectedSim == null) {
         _showSimSelectionModal();
       }
 
@@ -97,61 +138,24 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
       return;
     }
 
-    // Standardize selected filter
-    final bool filterSim1 = _selectedSimFilter == 'SIM 1';
-
-    // Find all valid account IDs natively presented by this specific device
-    // We exclude IDs that already contain "sim" to focus on internal numeric/UUID pointers
-    List<String> validIds = _allCallLogs
-        .map((log) => log.phoneAccountId?.trim() ?? '')
-        .where((id) => id.isNotEmpty && !id.toLowerCase().contains('sim'))
-        .toSet()
-        .toList()
-        ..sort();
-
     _callLogs = _allCallLogs.where((log) {
       // Basic call type matching
       bool typeMatch = (log.callType == CallType.incoming || log.callType == CallType.outgoing);
       if (!typeMatch) return false;
 
-      final accId = (log.phoneAccountId ?? '').trim();
-      final simName = (log.simDisplayName ?? '').trim();
+      final accId = log.phoneAccountId ?? '';
+      final simName = log.simDisplayName ?? '';
       
-      // 1. Explicit Indexing for numeric strings '0' and '1' (Common on many Android versions)
-      if (accId == '0') return filterSim1;
-      if (accId == '1') return !filterSim1;
-
-      // 2. Normalization for string-based identification (e.g., "SIM 1", "sim1")
-      final normAccId = accId.toLowerCase().replaceAll(' ', '');
-      final normSimName = simName.toLowerCase().replaceAll(' ', '');
-      
-      final bool isExplicit1 = normAccId.contains('sim1') || 
-                               normAccId.contains('sim0') || // Internal offset
-                               normSimName.contains('sim1') ||
-                               normSimName.contains('sim0');
-                               
-      final bool isExplicit2 = normAccId.contains('sim2') || 
-                               normSimName.contains('sim2');
-
-      if (isExplicit1) return filterSim1;
-      if (isExplicit2) return !filterSim1;
-
-      // 3. Fallback: Identify by relative index of the internal account ID
-      // This handles UUIDs or random identification strings provided by the OS
-      if (accId.isNotEmpty && validIds.isNotEmpty) {
-        final index = validIds.indexOf(accId);
-        if (index == 0) return filterSim1;
-        if (index > 0) return !filterSim1;
+      // Normalize current log SIM info
+      String currentSim;
+      if (accId == '0' || accId == '1') {
+        currentSim = CallLogService.normalizeSimId(accId);
+      } else {
+        currentSim = CallLogService.normalizeSimId(simName);
       }
 
-      // 4. Last resort: If we have no ID but we have a display name, try partial match
-      if (normSimName.isNotEmpty) {
-        if (normSimName.contains('1')) return filterSim1;
-        if (normSimName.contains('2')) return !filterSim1;
-      }
-
-      // Default to SIM 1 if we can't determine, to avoid making logs disappear
-      return filterSim1;
+      // Exact match with our standardized option
+      return currentSim == _selectedSimFilter;
     }).toList();
   }
 

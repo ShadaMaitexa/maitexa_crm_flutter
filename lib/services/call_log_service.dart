@@ -31,9 +31,22 @@ class CallLogService {
     return trimmed;
   }
 
-  static Future<List<String>> getAvailableSims() async {
+  static Future<List<String>> getAvailableSims({Iterable<CallLogEntry>? logs}) async {
     await requestPermissions();
-    return ['SIM 1', 'SIM 2'];
+    if (logs == null || logs.isEmpty) {
+      return ['SIM 1', 'SIM 2'];
+    }
+
+    final Set<String> sims = {};
+    for (var entry in logs) {
+      if (entry.simDisplayName != null && entry.simDisplayName!.isNotEmpty) {
+        sims.add(normalizeSimId(entry.simDisplayName));
+      }
+    }
+
+    if (sims.isEmpty) return ['SIM 1', 'SIM 2'];
+    final sortedSims = sims.toList()..sort();
+    return sortedSims;
   }
 
   Future<void> syncCallLogs(String userId) async {

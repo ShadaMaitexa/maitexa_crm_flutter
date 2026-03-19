@@ -60,10 +60,12 @@ class _SignupScreenState extends State<SignupScreen> {
         }
 
         // Add user to Firestore
-        String phoneNumber = _phoneController.text.trim();
+        String phoneNumber = _phoneController.text.trim().replaceAll(RegExp(r'\s+'), '');
         if (phoneNumber.isNotEmpty && !phoneNumber.startsWith('+')) {
           if (phoneNumber.length == 10) {
             phoneNumber = '+91$phoneNumber';
+          } else if (phoneNumber.length == 12 && phoneNumber.startsWith('91')) {
+            phoneNumber = '+$phoneNumber';
           }
         }
 

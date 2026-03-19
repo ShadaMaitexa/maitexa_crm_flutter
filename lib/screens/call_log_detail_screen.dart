@@ -29,6 +29,8 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
   bool _isSavingNote = false;
   bool _isConverted = false;
   bool _isTogglingConversion = false;
+  String? _normalizedPhone;
+  bool _isPreparingFollowUp = false;
 
   // Default labels (same as in todays_calls_screen.dart)
   final List<String> _defaultLabels = [
@@ -44,6 +46,15 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
   void initState() {
     super.initState();
     _nameController.text = widget.callEntry.name ?? '';
+    
+    // Normalize phone number
+    if (widget.callEntry.number != null) {
+      String num = widget.callEntry.number!.replaceAll(RegExp(r'\s+'), '');
+      if (num.length == 10) num = '+91$num';
+      else if (num.length == 12 && num.startsWith('91')) num = '+$num';
+      _normalizedPhone = num;
+    }
+
     _loadExistingLabel();
     _loadConversionState();
   }
@@ -139,9 +150,10 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
       // Record the call with the name
       _currentCallId = await FirebaseService.recordCall({
         'number': widget.callEntry.number,
+        'phone_number': widget.callEntry.number, // Added to ensure lookup works
         'name': _nameController.text.trim().isNotEmpty
             ? _nameController.text.trim()
-            : widget.callEntry.name,
+            : widget.callEntry.name ?? 'Unknown',
         'duration': widget.callEntry.duration,
         'timestamp': widget.callEntry.timestamp,
         'type': widget.callEntry.callType.toString(),
@@ -221,12 +233,24 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
       String number = widget.callEntry.number!.replaceAll(RegExp(r'\s+'), '');
       if (number.length == 10) number = '+91$number';
       
-      final String callDocId = '${number}_${widget.callEntry.timestamp}';
+      if (_currentCallId == null) {
+        _currentCallId = await FirebaseService.recordCall({
+          'phone_number': widget.callEntry.number,
+          'number': widget.callEntry.number,
+          'name': _nameController.text.trim().isNotEmpty
+              ? _nameController.text.trim()
+              : widget.callEntry.name ?? 'Unknown',
+          'duration': widget.callEntry.duration,
+          'timestamp': widget.callEntry.timestamp,
+          'type': widget.callEntry.callType.toString(),
+          'label': _selectedLabel,
+        });
+      }
 
       await FirebaseService.addPhoneNote(
         number,
         _noteController.text.trim(),
-        callId: callDocId,
+        callId: _currentCallId,
       );
       _noteController.clear();
       if (mounted) {
@@ -251,19 +275,52 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
     }
   }
 
-  void _navigateToScheduleFollowUp() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AddFollowUpScreen(
-          phoneNumber: widget.callEntry.number,
-          contactName: _nameController.text.trim().isNotEmpty
-              ? _nameController.text.trim()
-              : widget.callEntry.name,
-          callId: _currentCallId,
+  Future<void> _navigateToScheduleFollowUp() async {
+    if (_normalizedPhone == null || _isPreparingFollowUp) return;
+    
+    setState(() => _isPreparingFollowUp = true);
+    
+    try {
+      // Ensure we have a call ID to link to
+      if (_currentCallId == null) {
+        _currentCallId = await FirebaseService.findExistingCallRecord(
+          widget.callEntry.number!, 
+          widget.callEntry.timestamp!
+        );
+        
+        if (_currentCallId == null) {
+          // Create the record if it doesn't exist
+          _currentCallId = await FirebaseService.recordCall({
+            'phone_number': _normalizedPhone,
+            'number': widget.callEntry.number,
+            'name': _nameController.text.trim().isNotEmpty
+                ? _nameController.text.trim()
+                : widget.callEntry.name ?? 'Unknown',
+            'duration': widget.callEntry.duration,
+            'timestamp': widget.callEntry.timestamp,
+            'type': widget.callEntry.callType.toString(),
+            'label': _selectedLabel,
+          });
+        }
+      }
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AddFollowUpScreen(
+            phoneNumber: widget.callEntry.number,
+            contactName: _nameController.text.trim().isNotEmpty
+                ? _nameController.text.trim()
+                : widget.callEntry.name,
+            callId: _currentCallId,
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      if (mounted) setState(() => _isPreparingFollowUp = false);
+    }
   }
 
   @override
@@ -516,10 +573,10 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
             const SizedBox(height: 16),
 
             // Saved Notes List
-            if (widget.callEntry.number != null)
+            if (_normalizedPhone != null)
               StreamBuilder<QuerySnapshot>(
                 stream: FirebaseService.getPhoneNotesStream(
-                  widget.callEntry.number!,
+                  _normalizedPhone!,
                 ),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -624,10 +681,10 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            if (widget.callEntry.number != null)
+            if (_normalizedPhone != null)
               StreamBuilder<QuerySnapshot>(
                 stream: FirebaseService.getPhoneFollowUpsStream(
-                  widget.callEntry.number!,
+                  _normalizedPhone!,
                 ),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -704,9 +761,11 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: _navigateToScheduleFollowUp,
-                icon: const Icon(Icons.calendar_today),
-                label: const Text('Schedule Follow-up'),
+                onPressed: _isPreparingFollowUp ? null : _navigateToScheduleFollowUp,
+                icon: _isPreparingFollowUp 
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.calendar_today),
+                label: Text(_isPreparingFollowUp ? 'Preparing...' : 'Schedule Follow-up'),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   foregroundColor: Colors.orange,

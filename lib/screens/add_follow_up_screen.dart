@@ -76,6 +76,16 @@ class _AddFollowUpScreenState extends State<AddFollowUpScreen> {
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
 
+    if (_followUpDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a follow-up date'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _error = null;
@@ -89,16 +99,22 @@ class _AddFollowUpScreenState extends State<AddFollowUpScreen> {
         throw Exception('User not authenticated');
       }
 
+      // Normalize phone number to +91XXXXXXXXXX
+      String contactPhone = _contactPhoneController.text.trim().replaceAll(RegExp(r'[^\d]'), '');
+      if (contactPhone.length == 10) {
+        contactPhone = '+91$contactPhone';
+      } else if (contactPhone.length == 12 && contactPhone.startsWith('91')) {
+        contactPhone = '+$contactPhone';
+      }
+
       final followUpData = {
         'contactName': _contactNameController.text.trim(),
-        'contactPhone': _contactPhoneController.text.trim(),
+        'contactPhone': contactPhone, // Use normalized phone
         'notes': _notesController.text.trim(),
         'outcome': _outcomeController.text.trim(),
         'status': _status,
         'priority': _priority,
-        'followUpDate': _followUpDate != null
-            ? Timestamp.fromDate(_followUpDate!)
-            : null,
+        'followUpDate': Timestamp.fromDate(_followUpDate!),
         'createdBy': currentUser.id,
         'callerName': currentUser.name, // Intel redundancy
         'createdAt': FieldValue.serverTimestamp(),

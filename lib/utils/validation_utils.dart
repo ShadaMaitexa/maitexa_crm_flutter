@@ -7,17 +7,23 @@ class ValidationUtils {
       return 'Please enter a phone number';
     }
     
-    // Remove all non-digit characters
+    // Remove all non-digit characters to check length
     final digitsOnly = value.replaceAll(RegExp(r'[^\d]'), '');
     
-    if (digitsOnly.length != 10) {
-      return 'Phone number must be exactly 10 digits';
+    if (digitsOnly.length != 10 && digitsOnly.length != 12) {
+      return 'Please enter a valid phone number (10 digits)';
     }
+
+    if (digitsOnly.length == 12 && !digitsOnly.startsWith('91')) {
+      return 'Invalid country code. Use 91 or 10 digits';
+    }
+
+    final last10 = digitsOnly.length == 12 ? digitsOnly.substring(2) : digitsOnly;
     
     // Validate Indian mobile number format (starts with 6, 7, 8, or 9)
     final phoneRegex = RegExp(r'^[6-9]\d{9}$');
-    if (!phoneRegex.hasMatch(digitsOnly)) {
-      return 'Please enter a valid 10-digit phone number';
+    if (!phoneRegex.hasMatch(last10)) {
+      return 'Please enter a valid mobile number';
     }
     
     return null;
@@ -103,7 +109,7 @@ class ValidationUtils {
 
   // Text input formatter for phone numbers - only allows digits
   static TextInputFormatter getPhoneNumberFormatter() {
-    return FilteringTextInputFormatter.digitsOnly;
+    return FilteringTextInputFormatter.allow(RegExp(r'[0-9+]'));
   }
 
   // Text input formatter for names - only allows letters and spaces

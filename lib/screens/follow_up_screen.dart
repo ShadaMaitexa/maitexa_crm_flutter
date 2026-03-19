@@ -215,11 +215,11 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
 
       switch (_selectedFilter) {
         case 0: // Today
-          return date.isAfter(today) && date.isBefore(tomorrow);
+          return !date.isBefore(today) && date.isBefore(tomorrow);
         case 1: // Overdue
           return date.isBefore(today);
         case 2: // Upcoming
-          return date.isAfter(tomorrow);
+          return !date.isBefore(tomorrow);
         default:
           return true;
       }

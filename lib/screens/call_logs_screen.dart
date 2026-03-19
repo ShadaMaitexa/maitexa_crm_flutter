@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:call_log/call_log.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_constants.dart';
 import '../services/call_log_service.dart';
 import '../services/firebase_service.dart';
@@ -47,6 +48,8 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
     _loadData();
   }
 
+  static const String _simPrefKey = 'selected_sim_filter';
+
   Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
@@ -63,73 +66,101 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
         return;
       }
 
-      final logs = await CallLog.query(); // Direct call_log package access
+      final logs = await CallLog.query();
       final logsList = logs.toList();
 
-      // Get standardized SIMs
+      // Get normalized SIM options (e.g. "SIM 1", "SIM 2", "Airtel", etc.)
       _simOptions = await CallLogService.getAvailableSims(logs: logsList);
 
-      // 1. Fetch current user's phone for auto-SIM-detection
+      // Fetch the user's registered phone number from Firebase
       String? userPhone;
       final user = FirebaseService.authInstance.currentUser;
       if (user != null) {
-        final profile = await FirebaseService.firestore.collection(FirebaseService.usersCollection).doc(user.uid).get();
+        final profile = await FirebaseService.firestore
+            .collection(FirebaseService.usersCollection)
+            .doc(user.uid)
+            .get();
         if (profile.exists) {
-          userPhone = profile.data()?['phone']?.toString().replaceAll(RegExp(r'\s+'), '');
-          // Keep only last 10 digits for matching
-          if (userPhone != null && userPhone.length > 10) {
-            userPhone = userPhone.substring(userPhone.length - 10);
-          }
+          userPhone = profile.data()?['phone']?.toString().trim();
         }
       }
 
-      String? autoSelectedSim;
+      // Normalize registered phone to last 10 digits for comparison
+      String? userPhoneShort;
       if (userPhone != null && userPhone.isNotEmpty) {
-         // Deep scan: Match by SIM name OR internal account ID (which normalizeSimId now handles)
-         for (var option in _simOptions) {
-            final normOption = option.toLowerCase().replaceAll(' ', '').replaceAll('+', '');
-            if (normOption.contains(userPhone)) {
-              autoSelectedSim = option;
-              break;
-            }
-            
-            // Search all logs for this SIM to check if its internal ID matches
-            final matchId = logsList.any((l) => 
-               CallLogService.normalizeSimId(l.simDisplayName, phoneAccountId: l.phoneAccountId) == option &&
-               (l.phoneAccountId ?? '').replaceAll(RegExp(r'\s+'), '').contains(userPhone!)
-            );
-            if (matchId) {
-              autoSelectedSim = option;
-              break;
-            }
-         }
+        final digits = userPhone.replaceAll(RegExp(r'[^0-9]'), '');
+        userPhoneShort = digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
       }
 
-      // If no match found, only auto-select if there is EXACTLY one choice available
-      // This prevents choosing the wrong SIM on dual-SIM devices where 1 is "Unknown"
-      if (autoSelectedSim == null && _simOptions.length == 1) {
-        autoSelectedSim = _simOptions.first;
+      // --- Step 1: Try to auto-detect SIM by matching registered phone number ---
+      // On many Android devices, phoneAccountId stores the SIM's actual phone number.
+      // We scan all call log entries and check if any phoneAccountId ends with the
+      // user's registered number. If found, we know which SIM label to select.
+      String? autoDetectedSim;
+      if (userPhoneShort != null && userPhoneShort.isNotEmpty) {
+        // Build a map: simLabel -> set of raw phoneAccountIds seen for that SIM
+        final Map<String, Set<String>> simToAccountIds = {};
+        for (var entry in logsList) {
+          final simLabel = CallLogService.normalizeSimId(
+            entry.simDisplayName,
+            phoneAccountId: entry.phoneAccountId,
+          );
+          if (entry.phoneAccountId != null && entry.phoneAccountId!.isNotEmpty) {
+            simToAccountIds.putIfAbsent(simLabel, () => {}).add(entry.phoneAccountId!);
+          }
+        }
+
+        // Check each SIM: does its phoneAccountId contain the user's phone number?
+        for (var simLabel in _simOptions) {
+          final accountIds = simToAccountIds[simLabel] ?? {};
+          for (var accId in accountIds) {
+            final cleanAccId = accId.replaceAll(RegExp(r'[^0-9]'), '');
+            if (cleanAccId.endsWith(userPhoneShort)) {
+              autoDetectedSim = simLabel;
+              break;
+            }
+          }
+          if (autoDetectedSim != null) break;
+        }
       }
+
+      // --- Step 2: Restore saved preference if auto-detection didn't work ---
+      final prefs = await SharedPreferences.getInstance();
+      final savedSim = prefs.getString(_simPrefKey);
+
+      String? simToSelect;
+      if (autoDetectedSim != null) {
+        // Best case: matched by phone number
+        simToSelect = autoDetectedSim;
+        // Update saved preference to match
+        await prefs.setString(_simPrefKey, autoDetectedSim);
+      } else if (savedSim != null && _simOptions.contains(savedSim)) {
+        // Restore previous user choice
+        simToSelect = savedSim;
+      } else if (_simOptions.length == 1) {
+        // Only one SIM on the device
+        simToSelect = _simOptions.first;
+      }
+      // Otherwise → show modal for manual selection
 
       setState(() {
         _allCallLogs = logs;
         _isLoading = false;
-        _userPhone = userPhone; // Save to state for labeling
-        if (autoSelectedSim != null) {
-          _selectedSimFilter = autoSelectedSim;
+        _userPhone = userPhone;
+        if (simToSelect != null) {
+          _selectedSimFilter = simToSelect;
           _simSelected = true;
           _applySimFilter();
         } else {
-          _simSelected = false; // Show modal if match fails
+          _simSelected = false;
         }
       });
 
-      // Show upfront SIM selection modal if nothing auto-selected
-      if (mounted && _simOptions.isNotEmpty && autoSelectedSim == null) {
+      // Show SIM selection modal only if we couldn't determine which SIM to use
+      if (mounted && _simOptions.isNotEmpty && simToSelect == null) {
         _showSimSelectionModal();
       }
 
-      // Load categories in background without blocking UI
       _loadCategoriesInBackground(logs);
       _loadConversionStatusInBackground(logs);
     } catch (e) {
@@ -165,18 +196,22 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
   }
 
   void _showSimSelectionModal() {
-    // Find the latest number called/received on each SIM to show as a preview
+    // Build a preview of last call per SIM for the user to identify theirs
     final Map<String, String> simPreviews = {};
     for (var sim in _simOptions) {
       try {
         final lastCall = _allCallLogs.firstWhere(
-          (l) => CallLogService.normalizeSimId(l.simDisplayName, phoneAccountId: l.phoneAccountId) == sim
+          (l) => CallLogService.normalizeSimId(
+            l.simDisplayName, phoneAccountId: l.phoneAccountId) == sim,
         );
         simPreviews[sim] = lastCall.number ?? 'No recent calls';
-      } catch (e) {
+      } catch (_) {
         simPreviews[sim] = 'No recent calls';
       }
     }
+
+    // Format the registered phone for display
+    final hintPhone = _userPhone ?? 'your registered number';
 
     showDialog(
       context: context,
@@ -186,34 +221,37 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
           children: [
             Icon(Icons.sim_card_alert, color: AppColors.primary),
             SizedBox(width: 8),
-            Text('Select SIM Slot'),
+            Text('Select Your SIM'),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Choose the SIM card used for your business calls:'),
+            Text(
+              'Pick the SIM card linked to $hintPhone to see its call logs:',
+              style: const TextStyle(fontSize: 13),
+            ),
             const SizedBox(height: 16),
             ..._simOptions.map((sim) {
-              final isMatch = _userPhone != null && 
-                             sim.toLowerCase().replaceAll(' ', '').contains(_userPhone!);
-              
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(
-                  color: isMatch ? AppColors.primary.withOpacity(0.05) : Colors.grey.shade50,
-                  border: Border.all(color: isMatch ? AppColors.primary : Colors.grey.shade300),
+                  color: Colors.grey.shade50,
+                  border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: ListTile(
-                  leading: Icon(Icons.sim_card, color: isMatch ? AppColors.primary : Colors.grey),
-                  title: Text(
-                    isMatch ? '$sim (Business Number)' : sim,
-                    style: TextStyle(fontWeight: isMatch ? FontWeight.bold : FontWeight.normal),
+                  leading: const Icon(Icons.sim_card, color: AppColors.primary),
+                  title: Text(sim, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(
+                    'Last call to/from: ${simPreviews[sim]}',
+                    style: const TextStyle(fontSize: 11),
                   ),
-                  subtitle: Text('Last call: ${simPreviews[sim]}', style: const TextStyle(fontSize: 11)),
-                  onTap: () {
+                  onTap: () async {
                     Navigator.pop(dialogContext);
+                    // Persist the user's choice
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setString(_simPrefKey, sim);
                     setState(() {
                       _selectedSimFilter = sim;
                       _simSelected = true;
@@ -223,9 +261,9 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
                 ),
               );
             }).toList(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             const Text(
-              'Tips: If you don\'t see your number, check which slot has your latest business calls.',
+              'Tip: Pick the SIM whose last call number above belongs to one of your leads or contacts.',
               style: TextStyle(fontSize: 10, color: Colors.grey, fontStyle: FontStyle.italic),
             ),
           ],
@@ -572,8 +610,10 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
                                       child: Text(sim),
                                     );
                                   }).toList(),
-                                  onChanged: (String? newValue) {
+                                  onChanged: (String? newValue) async {
                                     if (newValue != null) {
+                                      final prefs = await SharedPreferences.getInstance();
+                                      await prefs.setString(_simPrefKey, newValue);
                                       setState(() {
                                         _selectedSimFilter = newValue;
                                         _simSelected = true;

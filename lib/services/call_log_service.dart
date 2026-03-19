@@ -20,23 +20,51 @@ class CallLogService {
     return await CallLog.get();
   }
 
+  /// Normalizes the SIM identifier into a human-readable label like "SIM 1" or "SIM 2".
+  /// 
+  /// IMPORTANT: `phoneAccountId` on Android is an internal system account ID
+  /// (slot index, ICCID, or UUID), NOT the SIM's phone number. We must never
+  /// treat it as the registered phone number. We only use it to infer slot index.
   static String normalizeSimId(String? simDisplayName, {String? phoneAccountId}) {
-    String? id = simDisplayName ?? phoneAccountId;
-    if (id == null || id.trim().isEmpty) return 'Unknown SIM';
-    
-    // If account ID looks like a number, prioritize it for precise matching
-    final cleanId = id.replaceAll(RegExp(r'\s+'), '');
-    if (cleanId.length >= 10 && RegExp(r'^[0-9+]+$').hasMatch(cleanId)) {
-      return cleanId;
+    // Step 1: Try to parse a meaningful label from simDisplayName first
+    if (simDisplayName != null && simDisplayName.trim().isNotEmpty) {
+      final display = simDisplayName.trim();
+      final lower = display.toLowerCase().replaceAll(' ', '');
+
+      // Explicit SIM slot patterns in display name
+      if (lower == 'sim1' || lower == 'sim 1' || lower.contains('sim1') || lower.contains('slot1') || lower.contains('slot 1')) {
+        return 'SIM 1';
+      }
+      if (lower == 'sim2' || lower == 'sim 2' || lower.contains('sim2') || lower.contains('slot2') || lower.contains('slot 2')) {
+        return 'SIM 2';
+      }
+
+      // If simDisplayName is a short index (some devices report '0' or '1')
+      if (display == '0') return 'SIM 1';
+      if (display == '1') return 'SIM 2';
+
+      // If simDisplayName is a carrier/operator name or any reasonable label, use it as-is
+      // but only if it doesn't look like a raw system ID (ICCID is 19-20 digits, UUID has dashes)
+      final isLikelySystemId = RegExp(r'^[0-9a-f\-]{10,}$', caseSensitive: false).hasMatch(display);
+      if (!isLikelySystemId) {
+        return display; // e.g. "Airtel", "Jio", "BSNL"
+      }
     }
 
-    final trimmed = id.trim();
-    if (trimmed == '0') return 'SIM 1';
-    if (trimmed == '1') return 'SIM 2';
-    final lower = trimmed.toLowerCase().replaceAll(' ', '');
-    if (lower.contains('sim0') || lower.contains('sim1')) return 'SIM 1';
-    if (lower.contains('sim2')) return 'SIM 2';
-    return trimmed;
+    // Step 2: Fall back to phoneAccountId only to infer the slot index
+    if (phoneAccountId != null && phoneAccountId.trim().isNotEmpty) {
+      final accId = phoneAccountId.trim();
+      // Some devices use '0' / '1' as phoneAccountId for slot index
+      if (accId == '0') return 'SIM 1';
+      if (accId == '1') return 'SIM 2';
+      // Some use 'SIM1'/'SIM2' style
+      final lower = accId.toLowerCase().replaceAll(' ', '');
+      if (lower.contains('sim1') || lower.contains('slot1')) return 'SIM 1';
+      if (lower.contains('sim2') || lower.contains('slot2')) return 'SIM 2';
+      // For anything else (ICCID, UUID, etc.), do NOT use as label — fall through to Unknown
+    }
+
+    return 'Unknown SIM';
   }
 
   static Future<List<String>> getAvailableSims({Iterable<CallLogEntry>? logs}) async {

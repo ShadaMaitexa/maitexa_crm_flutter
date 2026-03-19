@@ -593,6 +593,13 @@ class FirebaseService {
         .snapshots();
   }
 
+  static Stream<QuerySnapshot> getPhoneFollowUpsStream(String phoneNumber) {
+    return _firestore
+        .collection(followUpsCollection)
+        .where('contactPhone', isEqualTo: phoneNumber)
+        .snapshots();
+  }
+
   // Tasks
   static Future<List<Map<String, dynamic>>> getTasks() async {
     try {
@@ -1244,10 +1251,11 @@ class FirebaseService {
   }
 
   static Future<void> addPhoneNote(String phoneNumber, String note, {String? callId}) async {
+    final now = Timestamp.now();
     final noteData = {
       'note': note,
       'phone': phoneNumber,
-      'created_at': FieldValue.serverTimestamp(),
+      'created_at': now,
     };
 
     // 1. Still add to legacy collection for backward compatibility if needed, 
@@ -1274,6 +1282,17 @@ class FirebaseService {
         'notes': FieldValue.arrayUnion([noteData]),
       });
     }
+  }
+
+  static Future<void> updatePhoneNote(String noteId, String newNote) async {
+    await _firestore.collection(phoneNotesCollection).doc(noteId).update({
+      'note': newNote,
+      'updated_at': Timestamp.now(),
+    });
+  }
+
+  static Future<void> deletePhoneNote(String noteId) async {
+    await _firestore.collection(phoneNotesCollection).doc(noteId).delete();
   }
 
   // Activity Management

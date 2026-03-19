@@ -578,6 +578,19 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
                                         style: const TextStyle(fontSize: 14),
                                       ),
                                     ),
+                                    IconButton(
+                                      icon: const Icon(Icons.edit, size: 16, color: Colors.blue),
+                                      onPressed: () => _showEditNoteDialog(doc.id, noteText),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete, size: 16, color: Colors.red),
+                                      onPressed: () => _confirmDeleteNote(doc.id),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                    ),
                                   ],
                                 ),
                                 if (createdAt != null) ...[
@@ -597,6 +610,7 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
                           ),
                         );
                       }).toList(),
+
                     ],
                   );
                 },
@@ -606,9 +620,86 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
 
             // Schedule Follow-up Section
             const Text(
-              'Schedule Follow-up',
+              'Follow-ups',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 12),
+            if (widget.callEntry.number != null)
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseService.getPhoneFollowUpsStream(
+                  widget.callEntry.number!,
+                ),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  final docs = snapshot.data!.docs.toList()
+                    ..sort((a, b) {
+                      final aTs = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+                      final bTs = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+                      if (aTs == null && bTs == null) return 0;
+                      if (aTs == null) return 1;
+                      if (bTs == null) return -1;
+                      return bTs.compareTo(aTs);
+                    });
+
+                  return Column(
+                    children: docs.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final dateTs = data['followUpDate'] as Timestamp?;
+                      final notes = data['notes'] ?? '';
+                      final status = data['status'] ?? 'pending';
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(color: Colors.grey.shade200),
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.all(12),
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.calendar_today, color: Colors.orange, size: 20),
+                          ),
+                          title: Text(notes, style: const TextStyle(fontWeight: FontWeight.w500)),
+                          subtitle: dateTs != null
+                              ? Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    DateFormat('MMM d, yyyy').format(dateTs.toDate()),
+                                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                                  ),
+                                )
+                              : null,
+                          trailing: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: status == 'completed'
+                                  ? Colors.green.withOpacity(0.1)
+                                  : Colors.orange.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              status.toString().toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: status == 'completed' ? Colors.green : Colors.orange,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
@@ -758,6 +849,98 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showEditNoteDialog(String noteId, String currentNote) async {
+    final TextEditingController editController = TextEditingController(text: currentNote);
+    bool isSaving = false;
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Edit Note'),
+              content: CustomTextField(
+                controller: editController,
+                hintText: 'Enter note...',
+                maxLines: 4,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          if (editController.text.trim().isEmpty) return;
+                          setState(() => isSaving = true);
+                          try {
+                            await FirebaseService.updatePhoneNote(noteId, editController.text.trim());
+                            if (mounted) Navigator.pop(context);
+                          } catch (e) {
+                            setState(() => isSaving = false);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+                              );
+                            }
+                          }
+                        },
+                  child: isSaving
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteNoteConfirmed(String noteId) async {
+    try {
+      await FirebaseService.deletePhoneNote(noteId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Note deleted'), backgroundColor: AppColors.success),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteNote(String noteId) async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Note'),
+        content: const Text('Are you sure you want to delete this note?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteNoteConfirmed(noteId);
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

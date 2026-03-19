@@ -67,8 +67,4 @@ class ExportService {
   }
 }
 
-abstract class FileSaver {
-  static Future<void> saveAndShare(String content, String fileName) async {
-    throw UnimplementedError('saveAndShare must be implemented in platform specific files');
-  }
-}
+// Note: FileSaver must be provided by the platform-specific files imported above

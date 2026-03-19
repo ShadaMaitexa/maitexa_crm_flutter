@@ -314,218 +314,254 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
 
     return Container(
       color: const Color(0xFFF0F4FF),
-      child: Column(
-              children: [
-                _buildDateFilter(),
-                _buildQuickStatsStrip(),
-                _buildTabBar(),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _CallsTab(
-                          calls: _filteredCalls,
-                          phoneNotes: _allPhoneNotes,
-                          leadNotes: _allLeadNotes,
-                          allFollowUps: _allFollowUps,
-                          groupByDay: _groupByDay,
-                          callType: _callType,
-                          isHotDeal: _isHotDeal,
-                          findUserName: _findUserName,
-                          numberCategories: _numberCategories,
-                          tsToDate: _tsToDate),
-                      _LeadsTab(
-                          leads: _filteredLeads,
-                          labelFn: _leadLabel,
-                          isHot: _isHotDeal,
-                          isConverted: _isConverted,
-                          isFollowUp: _isFollowUp,
-                          tsToDate: _tsToDate,
-                          findUserName: _findUserName),
-                      _HotDealsTab(
-                          leads: _filteredLeads,
-                          labelFn: _leadLabel,
-                          isHot: _isHotDeal,
-                          tsToDate: _tsToDate,
-                          findUserName: _findUserName),
-                      _UserStatsTab(
-                          calls: _filteredCalls,
-                          leads: _filteredLeads,
-                          followUps: _filteredFollowUps,
-                          phoneNotes: _filteredPhoneNotes,
-                          leadNotes: _filteredLeadNotes,
-                          users: _allUsers,
-                          callType: _callType,
-                          isHot: _isHotDeal,
-                          isConverted: _isConverted,
-                          findUserName: _findUserName,
-                          onUserTap: (uid) {
-                            setState(() {
-                              _selectedUserId = uid;
-                              _tabController.animateTo(0); // Go back to Calls tab with filter applied
-                            });
-                          }),
-                      _FollowUpsTab(
-                          followUps: _filteredFollowUps,
-                          allFollowUps: _allFollowUps,
-                          tsToDate: _tsToDate,
-                          findUserName: _findUserName),
-                    ],
-                  ),
-                ),
-              ],
+      child: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+          SliverToBoxAdapter(child: _buildDateFilter()),
+          SliverToBoxAdapter(child: _buildQuickStatsStrip()),
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _SliverTabBarDelegate(
+              child: _buildTabBar(),
             ),
+          ),
+        ],
+        body: TabBarView(
+          controller: _tabController,
+          children: [
+            _CallsTab(
+                calls: _filteredCalls,
+                phoneNotes: _allPhoneNotes,
+                leadNotes: _allLeadNotes,
+                allFollowUps: _allFollowUps,
+                groupByDay: _groupByDay,
+                callType: _callType,
+                isHotDeal: _isHotDeal,
+                findUserName: _findUserName,
+                numberCategories: _numberCategories,
+                tsToDate: _tsToDate),
+            _LeadsTab(
+                leads: _filteredLeads,
+                labelFn: _leadLabel,
+                isHot: _isHotDeal,
+                isConverted: _isConverted,
+                isFollowUp: _isFollowUp,
+                tsToDate: _tsToDate,
+                findUserName: _findUserName),
+            _HotDealsTab(
+                leads: _filteredLeads,
+                labelFn: _leadLabel,
+                isHot: _isHotDeal,
+                tsToDate: _tsToDate,
+                findUserName: _findUserName),
+            _UserStatsTab(
+                calls: _filteredCalls,
+                leads: _filteredLeads,
+                followUps: _filteredFollowUps,
+                phoneNotes: _filteredPhoneNotes,
+                leadNotes: _filteredLeadNotes,
+                users: _allUsers,
+                callType: _callType,
+                isHot: _isHotDeal,
+                isConverted: _isConverted,
+                findUserName: _findUserName,
+                onUserTap: (uid) {
+                  setState(() {
+                    _selectedUserId = uid;
+                    _tabController.animateTo(0); // Go back to Calls tab with filter applied
+                  });
+                }),
+            _FollowUpsTab(
+                followUps: _filteredFollowUps,
+                allFollowUps: _allFollowUps,
+                tsToDate: _tsToDate,
+                findUserName: _findUserName),
+          ],
+        ),
+      ),
     );
   }
 
+
   Widget _buildDateFilter() {
     return Container(
-      color: AppColors.primary,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Reports & Analytics',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    if (_selectedUserId != null)
-                      GestureDetector(
-                        onTap: () => setState(() => _selectedUserId = null),
-                        child: Container(
-                          margin: const EdgeInsets.only(top: 4),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text('Filtering: ${_findUserName(_selectedUserId)}', 
-                                style: const TextStyle(color: Colors.white, fontSize: 10)),
-                              const SizedBox(width: 4),
-                              const Icon(Icons.close, color: Colors.white, size: 12),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
+              const Text(
+                'Analytics',
+                style: TextStyle(
+                  color: Color(0xFF1E293B),
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
                 ),
               ),
-              IconButton(
-                onPressed: () {
-                  final enriched = _filteredCalls.map((c) {
-                    final uid = (c['userId'] ?? c['user_id'] ?? '').toString();
-                    final lead = _allLeads.firstWhere(
-                      (l) => l['id'] == c['lead_id'] || l['phone'] == c['phone_number'],
-                      orElse: () => <String, dynamic>{},
-                    );
+              Container(
+                height: 36,
+                width: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: () {
+                    final enriched = _filteredCalls.map((c) {
+                      final uid = (c['userId'] ?? c['user_id'] ?? '').toString();
+                      final lead = _allLeads.firstWhere(
+                        (l) => l['id'] == c['lead_id'] || l['phone'] == c['phone_number'],
+                        orElse: () => <String, dynamic>{},
+                      );
+                      
+                      // Find latest follow up for this contact
+                      final contactPhone = (c['phone_number'] ?? c['number'] ?? '').toString();
+                      final followUpMatches = _allFollowUps.where((f) => 
+                        (f['phoneNumber'] ?? f['phone'] ?? '').toString() == contactPhone
+                      ).toList()..sort((a,b) {
+                          final aD = _tsToDate(a['followUpDate']);
+                          final bD = _tsToDate(b['followUpDate']);
+                          if (aD == null) return 1;
+                          if (bD == null) return -1;
+                          return bD.compareTo(aD);
+                      });
+
+                      final latestFU = followUpMatches.isNotEmpty ? followUpMatches.first : null;
+                      final fuDate = latestFU != null ? _tsToDate(latestFU['followUpDate']) : null;
+                      final fuStaff = latestFU != null ? _findUserName((latestFU['createdBy'] ?? latestFU['userId'])?.toString()) : 'None';
+                      final fuNote = latestFU != null ? (latestFU['notes'] ?? latestFU['note'] ?? '').toString() : '';
+
+                      return {
+                        ...c,
+                        'userName': _findUserName(uid),
+                        'isHot': _isHotDeal(lead),
+                        'isConverted': _isConverted(lead),
+                        'status': lead['status'] ?? c['status'] ?? '',
+                        'label': _leadLabel(lead).isEmpty ? (c['label'] ?? '') : _leadLabel(lead),
+                        'followUpDate': fuDate != null ? DateFormat('MMM d, yyyy').format(fuDate) : 'None',
+                        'followUpStaff': fuStaff,
+                        'followUpNote': fuNote,
+                      };
+                    }).toList();
+
+                    final dateRangeStr = '${DateFormat('MMM d').format(_startDate)}-${DateFormat('MMM d').format(_endDate)}';
+                    final staffSuffix = _selectedUserId != null ? '_${_findUserName(_selectedUserId).replaceAll(' ', '_')}' : '_All_Staff';
+                    final fullFileName = 'CRM_Report${staffSuffix}_$dateRangeStr';
                     
-                    // Find latest follow up for this contact
-                    final contactPhone = (c['phone_number'] ?? c['number'] ?? '').toString();
-                    final followUpMatches = _allFollowUps.where((f) => 
-                      (f['phoneNumber'] ?? f['phone'] ?? '').toString() == contactPhone
-                    ).toList()..sort((a,b) {
-                        final aD = _tsToDate(a['followUpDate']);
-                        final bD = _tsToDate(b['followUpDate']);
-                        if (aD == null) return 1;
-                        if (bD == null) return -1;
-                        return bD.compareTo(aD);
-                    });
-
-                    final latestFU = followUpMatches.isNotEmpty ? followUpMatches.first : null;
-                    final fuDate = latestFU != null ? _tsToDate(latestFU['followUpDate']) : null;
-                    final fuStaff = latestFU != null ? _findUserName((latestFU['createdBy'] ?? latestFU['userId'])?.toString()) : 'None';
-                    final fuNote = latestFU != null ? (latestFU['notes'] ?? latestFU['note'] ?? '').toString() : '';
-
-                    return {
-                      ...c,
-                      'userName': _findUserName(uid),
-                      'isHot': _isHotDeal(lead),
-                      'isConverted': _isConverted(lead),
-                      'status': lead['status'] ?? c['status'] ?? '',
-                      'label': _leadLabel(lead).isEmpty ? (c['label'] ?? '') : _leadLabel(lead),
-                      'followUpDate': fuDate != null ? DateFormat('MMM d, yyyy').format(fuDate) : 'None',
-                      'followUpStaff': fuStaff,
-                      'followUpNote': fuNote,
-                    };
-                  }).toList();
-
-                  final dateRangeStr = '${DateFormat('MMM d').format(_startDate)}-${DateFormat('MMM d').format(_endDate)}';
-                  final staffSuffix = _selectedUserId != null ? '_${_findUserName(_selectedUserId).replaceAll(' ', '_')}' : '_All_Staff';
-                  final fullFileName = 'CRM_Report${staffSuffix}_$dateRangeStr';
-                  
-                  ExportService.exportCallsToCsv(enriched, fullFileName);
-                },
-                icon: const Icon(Icons.file_download, color: Colors.white),
-                tooltip: 'Export to Excel',
+                    if (enriched.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('No call logs found in this range to export.'),
+                          backgroundColor: Colors.orange,
+                        )
+                      );
+                      return;
+                    }
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Starting export...'))
+                    );
+                    ExportService.exportCallsToCsv(enriched, fullFileName);
+                  },
+                  icon: const Icon(Icons.file_download, color: AppColors.primary, size: 20),
+                  tooltip: 'Export to Excel',
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          _buildUserDropdown(),
           const SizedBox(height: 12),
-          GestureDetector(
-            onTap: _pickDateRange,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(0.4)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.date_range, color: Colors.white, size: 20),
-                  const SizedBox(width: 10),
-                  Text(
-                    '${DateFormat('MMM d').format(_startDate)} – ${DateFormat('MMM d, yyyy').format(_endDate)}',
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.w600),
+          Row(
+            children: [
+              Expanded(flex: 3, child: _buildUserDropdown()),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 4,
+                child: GestureDetector(
+                  onTap: _pickDateRange,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_today_outlined, color: Color(0xFF64748B), size: 16),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            '${DateFormat('MMM d').format(_startDate)} – ${DateFormat('MMM d').format(_endDate)}',
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Color(0xFF334155), fontWeight: FontWeight.w600, fontSize: 12),
+                          ),
+                        ),
+                        const Icon(Icons.keyboard_arrow_down, color: Color(0xFF94A3B8), size: 18),
+                      ],
+                    ),
                   ),
-                  const Spacer(),
-                  const Icon(Icons.expand_more, color: Colors.white),
-                ],
+                ),
+              ),
+            ],
+          ),
+          if (_selectedUserId != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: GestureDetector(
+                onTap: () => setState(() => _selectedUserId = null),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.person, color: AppColors.primary, size: 12),
+                      const SizedBox(width: 4),
+                      Text('Staff: ${_findUserName(_selectedUserId)}', 
+                        style: const TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.close, color: AppColors.primary, size: 12),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
   }
 
+
+
   Widget _buildUserDropdown() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.4)),
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String?>(
           value: _selectedUserId,
-          dropdownColor: AppColors.primary,
-          icon: const Icon(Icons.person_search, color: Colors.white),
+          dropdownColor: Colors.white,
+          icon: const Icon(Icons.person_outline, color: Color(0xFF64748B), size: 16),
           isExpanded: true,
-          hint: const Text('Filter by Person (All)',
-              style: TextStyle(color: Colors.white70, fontSize: 13)),
-          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+          hint: const Text('Staff',
+              style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
+          style: const TextStyle(color: Color(0xFF334155), fontSize: 12, fontWeight: FontWeight.w600),
           items: [
             const DropdownMenuItem<String?>(
               value: null,
-              child: Text('All Users / Persons'),
+              child: Text('All Staff'),
             ),
             ..._allUsers.map((u) => DropdownMenuItem<String?>(
                   value: u['id'].toString(),
@@ -540,6 +576,8 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
     );
   }
 
+
+
   Widget _buildQuickStatsStrip() {
     final callsCount = _filteredCalls.length;
     final leadsCount = _filteredLeads.length;
@@ -547,87 +585,130 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
     final followUps = _filteredFollowUps.length;
 
     return Container(
-      color: AppColors.primary,
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 8, top: 0),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Row(
           children: [
-            _QuickStatItem('Calls', '$callsCount', Icons.call),
-            const SizedBox(width: 12),
-            _QuickStatItem('Leads', '$leadsCount', Icons.people),
-            const SizedBox(width: 12),
-            _QuickStatItem('Hot', '$hotDeals', Icons.whatshot),
-            const SizedBox(width: 12),
-            _QuickStatItem('Scheduled', '$followUps', Icons.event_note),
+            _QuickStatCard('Calls', '$callsCount', Icons.call, const Color(0xFF3B82F6)),
+            const SizedBox(width: 10),
+            _QuickStatCard('Leads', '$leadsCount', Icons.people, const Color(0xFF10B981)),
+            const SizedBox(width: 10),
+            _QuickStatCard('Hot', '$hotDeals', Icons.whatshot, const Color(0xFFEF4444)),
+            const SizedBox(width: 10),
+            _QuickStatCard('Diary', '$followUps', Icons.event_note, const Color(0xFF8B5CF6)),
           ],
         ),
       ),
     );
   }
 
-  Widget _QuickStatItem(String label, String value, IconData icon) {
+  Widget _QuickStatCard(String label, String value, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      width: 110,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(10),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Colors.white70, size: 14),
-          const SizedBox(width: 6),
+          Icon(icon, color: color, size: 16),
+          const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+            style: const TextStyle(
+              color: Color(0xFF1E293B),
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+            ),
           ),
-          const SizedBox(width: 4),
           Text(
-            label.toUpperCase(),
-            style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 9, fontWeight: FontWeight.w600),
+            label,
+            style: TextStyle(
+              color: Colors.grey.shade500,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
     );
   }
 
+
+
   Widget _buildTabBar() {
     return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(20),
-          bottomRight: Radius.circular(20),
-        ),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(0.03),
             blurRadius: 10,
-            offset: const Offset(0, 5),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: TabBar(
         controller: _tabController,
+        dividerColor: Colors.transparent,
         indicatorColor: AppColors.primary,
-        indicatorWeight: 4,
-        indicatorPadding: const EdgeInsets.symmetric(horizontal: 16),
+        indicatorWeight: 3,
+        indicatorSize: TabBarIndicatorSize.label,
         labelColor: AppColors.primary,
-        unselectedLabelColor: Colors.grey.shade400,
+        unselectedLabelColor: const Color(0xFF94A3B8),
         labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+        unselectedLabelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.normal),
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
         tabs: const [
-          Tab(icon: Icon(Icons.call_outlined, size: 20), text: 'Calls'),
-          Tab(icon: Icon(Icons.people_outline, size: 20), text: 'Leads'),
-          Tab(icon: Icon(Icons.whatshot_outlined, size: 20), text: 'Hot'),
-          Tab(icon: Icon(Icons.bar_chart_outlined, size: 20), text: 'Performance'),
-          Tab(icon: Icon(Icons.event_note_outlined, size: 20), text: 'Schedules'),
+          Tab(text: 'Calls'),
+          Tab(text: 'Leads'),
+          Tab(text: 'Hot'),
+          Tab(text: 'Growth'),
+          Tab(text: 'Diary'),
         ],
       ),
     );
   }
 }
+
+class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+  _SliverTabBarDelegate({required this.child});
+
+  @override
+  double get minExtent => 60;
+  @override
+  double get maxExtent => 60;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: const Color(0xFFF0F4FF),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) => false;
+}
+
+
+
+
 
 // ─────────────────────────────────────────────────────────────
 //  CALLS TAB
@@ -681,35 +762,39 @@ class _CallsTab extends StatelessWidget {
     final totalMissed = _count(calls, 'Missed');
     final totalHot = _hotCount(calls);
 
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final int gridCount = screenWidth > 1200 ? 6 : (screenWidth > 800 ? 3 : 2);
+    final double aspectRatio = screenWidth > 800 ? 1.8 : 1.3;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         // ── Summary Cards ────────────────────────────────────
-        _SectionHeader('Overview', Icons.analytics),
-        const SizedBox(height: 8),
+        _SectionHeader('Overall Stats', Icons.insights_rounded),
+        const SizedBox(height: 12),
         GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 1.5,
+          crossAxisCount: gridCount,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: aspectRatio,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: [
             _SummaryCard('Total Calls', '${calls.length}',
-                Icons.call, AppColors.primary),
+                Icons.call, const Color(0xFF3B82F6)),
             _SummaryCard('Incoming', '$totalIn',
-                Icons.call_received, AppColors.success),
+                Icons.call_received, const Color(0xFF10B981)),
             _SummaryCard('Outgoing', '$totalOut',
-                Icons.call_made, AppColors.info),
+                Icons.call_made, const Color(0xFF6366F1)),
             _SummaryCard('Missed', '$totalMissed',
-                Icons.call_missed, AppColors.error),
-            _SummaryCard('Hot Deals Calls', '$totalHot',
-                Icons.local_fire_department, Colors.orange),
-            _SummaryCard('Days', '${sortedDays.length}',
-                Icons.calendar_today, Colors.purple),
+                Icons.call_missed, const Color(0xFFEF4444)),
+            _SummaryCard('Hot Calls', '$totalHot',
+                Icons.local_fire_department, const Color(0xFFF59E0B)),
+            _SummaryCard('Total Days', '${sortedDays.length}',
+                Icons.calendar_month, const Color(0xFF8B5CF6)),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
 
         // ── Per-Day Breakdown ────────────────────────────────
         _SectionHeader('Daily Breakdown', Icons.today),
@@ -1681,57 +1766,50 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: color.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, color: color, size: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, color: color, size: 20),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1E293B),
                 ),
-                const Spacer(),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500),
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+                color: Colors.grey.shade500,
+                fontSize: 12,
+                fontWeight: FontWeight.w600),
+          ),
+        ],
       ),
     );
   }
+
 }
 
 class _SectionHeader extends StatelessWidget {

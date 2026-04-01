@@ -289,6 +289,24 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
     );
   }
 
+  /// After returning from detail screen, re-check one entry's converted status
+  Future<void> _refreshConversionForEntry(CallLogEntry entry) async {
+    if (entry.number == null || entry.timestamp == null || !mounted) return;
+    final callId = await FirebaseService.findExistingCallRecord(
+        entry.number!, entry.timestamp!);
+    if (callId == null) return;
+    final doc = await FirebaseService.firestore
+        .collection(FirebaseService.callsCollection)
+        .doc(callId)
+        .get();
+    if (!mounted) return;
+    final data = doc.data();
+    final key = '${entry.number}_${entry.timestamp}';
+    setState(() {
+      _convertedCalls[key] = data?['isConverted'] == true;
+    });
+  }
+
   Future<void> _loadConversionStatusInBackground(
       Iterable<CallLogEntry> logs) async {
     final checkLogs = logs.take(50);
@@ -507,6 +525,8 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
         ? '${(entry.duration! / 60).floor()}m ${entry.duration! % 60}s'
         : '0s';
     final category = _numberCategories[entry.number];
+    final key = '${entry.number}_${entry.timestamp}';
+    final isConverted = _convertedCalls[key] == true;
     final leadProvider = Provider.of<LeadProvider>(context, listen: false);
 
     return Card(
@@ -515,11 +535,22 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
         vertical: AppSizes.paddingS,
       ),
       elevation: 0,
+      color: isConverted ? Colors.green.withOpacity(0.03) : null,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppSizes.radiusM),
-        side: BorderSide(color: Colors.grey.shade200),
+        side: isConverted
+            ? const BorderSide(color: Colors.green, width: 1.5)
+            : BorderSide(color: Colors.grey.shade200),
       ),
-      child: Column(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppSizes.radiusM),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CallLogDetailScreen(callEntry: entry),
+          ),
+        ).then((_) => _refreshConversionForEntry(entry)),
+        child: Column(
         children: [
           ListTile(
             leading: CircleAvatar(
@@ -579,7 +610,7 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
                         builder: (context) =>
                             CallLogDetailScreen(callEntry: entry),
                       ),
-                    );
+                    ).then((_) => _refreshConversionForEntry(entry));
                     break;
                   case 'name':
                     _showAddNameDialog(context, entry);
@@ -689,27 +720,21 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
                     child: OutlinedButton.icon(
                       onPressed: () => _toggleConverted(entry),
                       icon: Icon(
-                        _convertedCalls[
-                                    '${entry.number}_${entry.timestamp}'] ==
-                                true
+                        isConverted
                             ? Icons.check_circle
                             : Icons.check_circle_outline,
                         size: 16,
                       ),
-                      label: const Text('Converted'),
+                      label: Text(isConverted ? 'Converted ✓' : 'Converted'),
                       style: OutlinedButton.styleFrom(
                         padding:
                             const EdgeInsets.symmetric(vertical: 8),
                         visualDensity: VisualDensity.compact,
-                        foregroundColor: _convertedCalls[
-                                    '${entry.number}_${entry.timestamp}'] ==
-                                true
+                        foregroundColor: isConverted
                             ? AppColors.success
                             : AppColors.textSecondary,
                         side: BorderSide(
-                          color: _convertedCalls[
-                                      '${entry.number}_${entry.timestamp}'] ==
-                                  true
+                          color: isConverted
                               ? AppColors.success
                               : Colors.grey.shade300,
                         ),
@@ -720,7 +745,8 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
               ),
             ),
         ],
-      ),
+        ),  // closes Column
+      ),    // closes InkWell
     );
   }
 

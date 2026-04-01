@@ -200,9 +200,10 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
       return calls.where((c) => c.callType == 'missed').toList();
     if (filter == 'Hot Deals')
       return calls.where((c) => c.label == 'Hot Deals').toList();
-    // For other filters like 'New Leads', we would need to fetch lead data,
-    // but for simplicity in this stream, we just filter by call type or keep all.
-    // In a real app, you might use a more complex query or multiple streams.
+    if (filter == 'Follow Ups')
+      return calls.where((c) => c.label == 'Follow Up').toList();
+    if (filter == 'Converted')
+      return calls.where((c) => c.isConverted).toList();
     return calls;
   }
 
@@ -217,6 +218,13 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: call.isConverted
+            ? const BorderSide(color: Colors.green, width: 1.5)
+            : BorderSide(color: Colors.grey.shade200),
+      ),
+      color: call.isConverted ? Colors.green.withOpacity(0.03) : null,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -265,25 +273,57 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
                     ],
                   ),
                 ),
-                if (call.label.isNotEmpty && call.label != 'Unknown')
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      call.label,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
+                Row(
+                  children: [
+                    if (call.isConverted)
+                      Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.green.withOpacity(0.4)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.check_circle, size: 12, color: Colors.green),
+                            SizedBox(width: 4),
+                            Text(
+                              'Converted',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.green,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
+                    if (call.label.isNotEmpty && call.label != 'Unknown')
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          call.label,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -329,6 +369,17 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
                       _showLabelDialog(context, call, leadProvider),
                   icon: const Icon(Icons.label_outline),
                   tooltip: "Add Label",
+                ),
+                // Converted toggle
+                IconButton(
+                  onPressed: () => _toggleConverted(context, call),
+                  icon: Icon(
+                    call.isConverted
+                        ? Icons.check_circle
+                        : Icons.check_circle_outline,
+                    color: call.isConverted ? Colors.green : Colors.grey,
+                  ),
+                  tooltip: call.isConverted ? 'Mark Unconverted' : 'Mark Converted',
                 ),
               ],
             ),
@@ -530,6 +581,26 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _toggleConverted(BuildContext context, CallModel call) async {
+    final newValue = !call.isConverted;
+    try {
+      await FirebaseService.updateCallConversion(call.id, newValue);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(newValue ? 'Marked as Converted!' : 'Conversion Removed'),
+          backgroundColor: newValue ? Colors.green : Colors.grey,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   String _capitalize(String s) =>

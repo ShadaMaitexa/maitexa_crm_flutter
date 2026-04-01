@@ -8,6 +8,7 @@ class CallModel {
   final int duration;
   final String label;
   final String? leadId;
+  final bool isConverted;
 
   CallModel({
     required this.id,
@@ -17,6 +18,7 @@ class CallModel {
     required this.duration,
     required this.label,
     this.leadId,
+    this.isConverted = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -27,6 +29,7 @@ class CallModel {
       'duration': duration,
       'label': label,
       'lead_id': leadId,
+      'isConverted': isConverted,
     };
   }
 
@@ -40,6 +43,7 @@ class CallModel {
       duration: data['duration'] ?? 0,
       label: data['label'] ?? '',
       leadId: data['lead_id'],
+      isConverted: data['isConverted'] == true,
     );
   }
 }

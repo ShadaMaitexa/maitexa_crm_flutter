@@ -668,11 +668,17 @@ class FirebaseService {
           .where('visitDate', isGreaterThanOrEqualTo: startOfMonth)
           .get();
 
-      // Get conversions (enquiries with status 'converted')
-      final QuerySnapshot conversions = await _firestore
+      // Get conversions from both enquiries and leads
+      final QuerySnapshot enquiryConversions = await _firestore
           .collection(enquiriesCollection)
-          .where('status', isEqualTo: 'converted')
+          .where('status', whereIn: ['converted', 'Converted'])
           .where('createdAt', isGreaterThanOrEqualTo: startOfMonth)
+          .get();
+
+      final QuerySnapshot leadConversions = await _firestore
+          .collection(leadsCollection)
+          .where('status', whereIn: ['converted', 'Converted'])
+          .where('created_at', isGreaterThanOrEqualTo: startOfMonth)
           .get();
 
       return {
@@ -689,7 +695,7 @@ class FirebaseService {
             (await _firestore.collection(collegeVisitsCollection).get())
                 .docs
                 .length,
-        'conversions': conversions.docs.length,
+        'conversions': enquiryConversions.docs.length + leadConversions.docs.length,
       };
     } catch (e) {
       print('Get dashboard stats error: $e');
@@ -749,12 +755,19 @@ class FirebaseService {
           .where('visitDate', isGreaterThanOrEqualTo: startOfMonth)
           .get();
 
-      // Get conversions for specific user
-      final QuerySnapshot conversions = await _firestore
+      // Get conversions for specific user from both collections
+      final QuerySnapshot enquiryConversions = await _firestore
           .collection(enquiriesCollection)
           .where('createdBy', isEqualTo: userId)
-          .where('status', isEqualTo: 'converted')
+          .where('status', whereIn: ['converted', 'Converted'])
           .where('createdAt', isGreaterThanOrEqualTo: startOfMonth)
+          .get();
+
+      final QuerySnapshot leadConversions = await _firestore
+          .collection(leadsCollection)
+          .where('createdBy', isEqualTo: userId)
+          .where('status', whereIn: ['converted', 'Converted'])
+          .where('created_at', isGreaterThanOrEqualTo: startOfMonth)
           .get();
 
       return {
@@ -777,7 +790,7 @@ class FirebaseService {
                     .get())
                 .docs
                 .length,
-        'conversions': conversions.docs.length,
+        'conversions': enquiryConversions.docs.length + leadConversions.docs.length,
       };
     } catch (e) {
       print('Get user dashboard stats error: $e');
@@ -828,7 +841,7 @@ class FirebaseService {
           'totalEnquiries': userEnquiries.length,
           'totalVisits': userVisits.length,
           'conversions': userEnquiries
-              .where((e) => e['status'] == 'converted')
+              .where((e) => e['status']?.toString().toLowerCase() == 'converted')
               .length,
         };
       } catch (fallbackError) {
@@ -1132,35 +1145,54 @@ class FirebaseService {
   // Call Tracking & Categorization
   static Future<String?> recordCall(Map<String, dynamic> callData) async {
     try {
-      // 1. Get Current User Info for ID & Name redundancy (helps export/analytics)
       final user = auth.FirebaseAuth.instance.currentUser;
       String? staffName;
       if (user != null) {
         final profile = await _firestore.collection(usersCollection).doc(user.uid).get();
-        if (profile.exists) {
-          staffName = profile.data()?['name']?.toString();
+        if (profile.exists) staffName = profile.data()?['name']?.toString();
+      }
+
+      String phoneNumber = normalizePhoneNumber(callData['phone_number']?.toString() ?? '');
+      
+      // Auto-resolve Lead (find by phone)
+      String? leadId = callData['lead_id'];
+      if (leadId == null && phoneNumber.isNotEmpty && user != null) {
+        final leadSnap = await _firestore.collection(leadsCollection)
+            .where('phone', isEqualTo: phoneNumber)
+            .limit(1)
+            .get();
+        
+        if (leadSnap.docs.isNotEmpty) {
+          leadId = leadSnap.docs.first.id;
         }
       }
 
-      // 2. Normalize timestamp
       dynamic timestamp = callData['timestamp'];
-      if (timestamp != null) {
-        if (timestamp is int) {
-          timestamp = DateTime.fromMillisecondsSinceEpoch(timestamp);
-        }
-      } else {
+      if (timestamp is int) {
+        timestamp = DateTime.fromMillisecondsSinceEpoch(timestamp);
+      } else if (timestamp == null) {
         timestamp = FieldValue.serverTimestamp();
       }
 
-      // 3. Save with extended intelligence
-      final docRef = await _firestore.collection(callsCollection).add({
+      final docData = {
         ...callData,
+        'phone_number': phoneNumber,
+        'lead_id': leadId,
         'timestamp': timestamp,
         'userId': user?.uid,
         'userName': staffName ?? 'User (${user?.uid ?? "Offline"})',
-        'staff_id': user?.uid, // Redundant for easy filtering
+        'staff_id': user?.uid,
         'recorded_at': FieldValue.serverTimestamp(),
-      });
+      };
+
+      final docRef = await _firestore.collection(callsCollection).add(docData);
+      
+      // If marked as converted, update the lead status immediately
+      if (callData['isConverted'] == true && leadId != null) {
+        await updateLead(leadId, {'status': 'Converted'});
+        await addActivity(leadId, 'Conversion', 'Lead converted from call context');
+      }
+
       return docRef.id;
     } catch (e) {
       debugPrint('Record call Intel Error: $e');
@@ -1331,16 +1363,49 @@ class FirebaseService {
   }
 
   static Future<void> updateCallConversion(String callId, bool isConverted) async {
+    // 1. Update the call document itself
     await _firestore.collection(callsCollection).doc(callId).update({
       'isConverted': isConverted,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    // 2. If marked as converted, also update the associated lead if it exists
+    if (isConverted) {
+      try {
+        final callDoc = await _firestore.collection(callsCollection).doc(callId).get();
+        final leadId = callDoc.data()?['lead_id'] as String?;
+        
+        if (leadId != null) {
+          await updateLead(leadId, {'status': 'Converted'});
+          await addActivity(
+            leadId,
+            'Conversion',
+            'Lead converted via call log action',
+          );
+        }
+      } catch (e) {
+        debugPrint('Error updating associated lead on conversion: $e');
+      }
+    }
+  }
+
+  static String normalizePhoneNumber(String number) {
+    String normalized = number.replaceAll(RegExp(r'[^\d]'), '');
+    if (normalized.length == 10) {
+      return '+91$normalized';
+    } else if (normalized.length == 12 && normalized.startsWith('91')) {
+      return '+$normalized';
+    }
+    return normalized.startsWith('+') ? normalized : '+$normalized';
   }
 
   static Future<String?> findExistingCallRecord(String number, int timestamp) async {
+    final normalized = normalizePhoneNumber(number);
     final DateTime dt = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    
+    // We try to find by normalized number and timestamp range
     final snap = await _firestore.collection(callsCollection)
-        .where('phone_number', isEqualTo: number)
+        .where('phone_number', isEqualTo: normalized)
         .where('timestamp', isGreaterThanOrEqualTo: dt.subtract(const Duration(seconds: 1)))
         .where('timestamp', isLessThanOrEqualTo: dt.add(const Duration(seconds: 1)))
         .limit(1)
@@ -1386,9 +1451,15 @@ class FirebaseService {
         .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
         .get();
 
-    final QuerySnapshot convertedLeads = await _firestore
+    // Get conversions from both leads and enquiries
+    final QuerySnapshot leadConversions = await _firestore
         .collection(leadsCollection)
-        .where('status', isEqualTo: 'Converted')
+        .where('status', whereIn: ['Converted', 'converted'])
+        .get();
+
+    final QuerySnapshot enquiryConversions = await _firestore
+        .collection(enquiriesCollection)
+        .where('status', whereIn: ['Converted', 'converted'])
         .get();
 
     final QuerySnapshot followUps = await _firestore
@@ -1399,7 +1470,7 @@ class FirebaseService {
     return {
       'todayLeadsCount': todayLeads.docs.length,
       'missedCallsCount': missedCalls.docs.length,
-      'convertedLeadsCount': convertedLeads.docs.length,
+      'convertedLeadsCount': leadConversions.docs.length + enquiryConversions.docs.length,
       'pendingFollowUpsCount': followUps.docs.length,
     };
   }

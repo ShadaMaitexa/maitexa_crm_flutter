@@ -61,7 +61,8 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
 
   Future<void> _loadConversionState() async {
     if (widget.callEntry.number == null || widget.callEntry.timestamp == null) return;
-    final callId = await FirebaseService.findExistingCallRecord(widget.callEntry.number!, widget.callEntry.timestamp!);
+    final normalized = FirebaseService.normalizePhoneNumber(widget.callEntry.number!);
+    final callId = await FirebaseService.findExistingCallRecord(normalized, widget.callEntry.timestamp!);
     if (callId != null) {
       final doc = await FirebaseService.firestore.collection(FirebaseService.callsCollection).doc(callId).get();
       if (mounted) {
@@ -78,15 +79,16 @@ class _CallLogDetailScreenState extends State<CallLogDetailScreen> {
     
     setState(() => _isTogglingConversion = true);
     try {
+      final normalized = FirebaseService.normalizePhoneNumber(widget.callEntry.number!);
       if (_currentCallId == null) {
-        _currentCallId = await FirebaseService.findExistingCallRecord(widget.callEntry.number!, widget.callEntry.timestamp!);
+        _currentCallId = await FirebaseService.findExistingCallRecord(normalized, widget.callEntry.timestamp!);
       }
 
       final newValue = !_isConverted;
 
       if (_currentCallId == null) {
         _currentCallId = await FirebaseService.recordCall({
-          'phone_number': widget.callEntry.number,
+          'phone_number': normalized,
           'name': widget.callEntry.name ?? 'Unknown',
           'duration': widget.callEntry.duration,
           'timestamp': widget.callEntry.timestamp,

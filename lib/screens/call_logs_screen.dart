@@ -301,7 +301,7 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
         .get();
     if (!mounted) return;
     final data = doc.data();
-    final key = '${entry.number}_${entry.timestamp}';
+    final key = '${FirebaseService.normalizePhoneNumber(entry.number!)}_${entry.timestamp}';
     setState(() {
       _convertedCalls[key] = data?['isConverted'] == true;
     });
@@ -322,7 +322,8 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
         final data = doc.data();
         if (data != null && data['isConverted'] == true && mounted) {
           setState(() {
-            _convertedCalls['${entry.number}_${entry.timestamp}'] = true;
+            final normalized = FirebaseService.normalizePhoneNumber(entry.number!);
+            _convertedCalls['${normalized}_${entry.timestamp}'] = true;
           });
         }
       }
@@ -330,10 +331,10 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
   }
 
   Future<void> _toggleConverted(CallLogEntry entry) async {
-    if (entry.number == null || entry.timestamp == null || _isConverting)
-      return;
+    if (entry.number == null || entry.timestamp == null || _isConverting) return;
 
-    final key = '${entry.number}_${entry.timestamp}';
+    final normalizedNum = FirebaseService.normalizePhoneNumber(entry.number!);
+    final key = '${normalizedNum}_${entry.timestamp}';
     final wasConverted = _convertedCalls[key] ?? false;
 
     setState(() => _isConverting = true);
@@ -371,6 +372,11 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
       }
     } catch (e) {
       if (mounted) setState(() => _isConverting = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update conversion: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -525,7 +531,8 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
         ? '${(entry.duration! / 60).floor()}m ${entry.duration! % 60}s'
         : '0s';
     final category = _numberCategories[entry.number];
-    final key = '${entry.number}_${entry.timestamp}';
+    final normalizedNum = FirebaseService.normalizePhoneNumber(entry.number ?? '');
+    final key = '${normalizedNum}_${entry.timestamp}';
     final isConverted = _convertedCalls[key] == true;
     final leadProvider = Provider.of<LeadProvider>(context, listen: false);
 

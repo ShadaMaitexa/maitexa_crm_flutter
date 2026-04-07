@@ -312,20 +312,27 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
     final checkLogs = logs.take(50);
     for (var entry in checkLogs) {
       if (entry.number == null || entry.timestamp == null) continue;
-      final callId = await FirebaseService.findExistingCallRecord(
-          entry.number!, entry.timestamp!);
-      if (callId != null) {
-        final doc = await FirebaseService.firestore
-            .collection(FirebaseService.callsCollection)
-            .doc(callId)
-            .get();
-        final data = doc.data();
-        if (data != null && data['isConverted'] == true && mounted) {
-          setState(() {
-            final normalized = FirebaseService.normalizePhoneNumber(entry.number!);
-            _convertedCalls['${normalized}_${entry.timestamp}'] = true;
-          });
+      try {
+        final callId = await FirebaseService.findExistingCallRecord(
+            entry.number!, entry.timestamp!);
+        if (callId != null) {
+          final doc = await FirebaseService.firestore
+              .collection(FirebaseService.callsCollection)
+              .doc(callId)
+              .get();
+          final data = doc.data();
+          if (data != null && mounted) {
+            final normalized =
+                FirebaseService.normalizePhoneNumber(entry.number!);
+            final key = '${normalized}_${entry.timestamp}';
+            // Always store state (true or false) so toggle is always accurate
+            setState(() {
+              _convertedCalls[key] = data['isConverted'] == true;
+            });
+          }
         }
+      } catch (e) {
+        debugPrint('Error loading conversion for ${entry.number}: $e');
       }
     }
   }

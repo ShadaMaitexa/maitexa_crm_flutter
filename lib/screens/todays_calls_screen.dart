@@ -10,7 +10,6 @@ import '../models/call_model.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../providers/auth_provider.dart';
 import 'lead_profile_screen.dart';
-import 'add_follow_up_screen.dart';
 
 class TodaysCallsScreen extends StatefulWidget {
   const TodaysCallsScreen({super.key});

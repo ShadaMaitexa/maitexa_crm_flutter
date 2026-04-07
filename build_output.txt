@@ -1,0 +1,28 @@
+﻿Running Gradle task 'assembleDebug'...                          
+flutter : Note: Some 
+input files use or 
+override a deprecated 
+API.
+At line:1 char:63
++ ... -ErrorAction 
+SilentlyContinue; 
+flutter build apk 
+--debug 2>&1 | Out-F ...
++                       
+             ~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo      
+        : NotSpecified  
+  : (Note: Some inpu.   
+ ..deprecated API.:S    
+tring) [], RemoteEx    
+ception
+    + FullyQualifiedErr 
+   orId : NativeComman  
+  dError
+ 
+Note: Recompile with 
+-Xlint:deprecation for 
+details.
+Running Gradle task 'assembleDebug'...                            749.9s
+ΓêÜ Built build\app\outputs\flutter-apk\app-debug.apk

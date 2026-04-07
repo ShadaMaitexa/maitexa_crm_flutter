@@ -1369,23 +1369,31 @@ class FirebaseService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
-    // 2. If marked as converted, also update the associated lead if it exists
-    if (isConverted) {
-      try {
-        final callDoc = await _firestore.collection(callsCollection).doc(callId).get();
-        final leadId = callDoc.data()?['lead_id'] as String?;
-        
-        if (leadId != null) {
+    // 2. Update the associated lead status accordingly
+    try {
+      final callDoc = await _firestore.collection(callsCollection).doc(callId).get();
+      final leadId = callDoc.data()?['lead_id'] as String?;
+
+      if (leadId != null) {
+        if (isConverted) {
           await updateLead(leadId, {'status': 'Converted'});
           await addActivity(
             leadId,
             'Conversion',
             'Lead converted via call log action',
           );
+        } else {
+          // Revert lead status back to active when un-converting
+          await updateLead(leadId, {'status': 'Active'});
+          await addActivity(
+            leadId,
+            'Conversion Reverted',
+            'Lead conversion removed via call log action',
+          );
         }
-      } catch (e) {
-        debugPrint('Error updating associated lead on conversion: $e');
       }
+    } catch (e) {
+      debugPrint('Error updating associated lead on conversion change: $e');
     }
   }
 
@@ -1402,16 +1410,31 @@ class FirebaseService {
   static Future<String?> findExistingCallRecord(String number, int timestamp) async {
     final normalized = normalizePhoneNumber(number);
     final DateTime dt = DateTime.fromMillisecondsSinceEpoch(timestamp);
-    
-    // We try to find by normalized number and timestamp range
-    final snap = await _firestore.collection(callsCollection)
+    final DateTime lower = dt.subtract(const Duration(seconds: 2));
+    final DateTime upper = dt.add(const Duration(seconds: 2));
+
+    // Query only by phone_number (no composite index needed), then filter
+    // timestamp in Dart to avoid requiring a Firestore composite index.
+    final snap = await _firestore
+        .collection(callsCollection)
         .where('phone_number', isEqualTo: normalized)
-        .where('timestamp', isGreaterThanOrEqualTo: dt.subtract(const Duration(seconds: 1)))
-        .where('timestamp', isLessThanOrEqualTo: dt.add(const Duration(seconds: 1)))
-        .limit(1)
         .get();
-    
-    if (snap.docs.isNotEmpty) return snap.docs.first.id;
+
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final ts = data['timestamp'];
+      DateTime? docTime;
+      if (ts is Timestamp) {
+        docTime = ts.toDate();
+      } else if (ts is DateTime) {
+        docTime = ts;
+      }
+      if (docTime != null &&
+          docTime.isAfter(lower) &&
+          docTime.isBefore(upper)) {
+        return doc.id;
+      }
+    }
     return null;
   }
 

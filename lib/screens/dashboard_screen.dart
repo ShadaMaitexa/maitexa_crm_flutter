@@ -872,9 +872,7 @@ class _DashboardContentState extends State<DashboardContent>
                 const SizedBox(height: AppSizes.paddingM),
                 LinearProgressIndicator(
                   value: performanceScore / 100,
-                  backgroundColor: AppColors.textSecondary.withValues(
-                    alpha: 0.1,
-                  ),
+                  backgroundColor: AppColors.textSecondary.withOpacity(0.1),
                   valueColor: const AlwaysStoppedAnimation<Color>(
                     AppColors.success,
                   ),
@@ -1492,9 +1490,7 @@ class _DashboardContentState extends State<DashboardContent>
                 const SizedBox(height: AppSizes.paddingXS),
                 LinearProgressIndicator(
                   value: progressValue,
-                  backgroundColor: AppColors.textSecondary.withValues(
-                    alpha: 0.1,
-                  ),
+                  backgroundColor: AppColors.textSecondary.withOpacity(0.1),
                   valueColor: AlwaysStoppedAnimation<Color>(iconColor),
                 ),
               ],

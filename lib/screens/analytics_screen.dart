@@ -43,7 +43,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       }
       _sourceStats = await FirebaseService.getLeadSourceStats();
     } catch (e) {
-      print('Error loading analytics data: $e');
+      debugPrint('Error loading analytics data: $e');
     } finally {
       setState(() {
         _isLoading = false;
@@ -124,9 +124,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                               side: BorderSide(
                                 color: isSelected
                                     ? AppColors.primary
-                                    : AppColors.textSecondary.withValues(
-                                        alpha: 0.3,
-                                      ),
+                                    : AppColors.textSecondary.withOpacity(0.3),
                               ),
                             ),
                             padding: const EdgeInsets.symmetric(

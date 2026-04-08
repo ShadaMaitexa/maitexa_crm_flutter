@@ -101,9 +101,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                                 side: BorderSide(
                                   color: isSelected
                                       ? AppColors.primary
-                                      : AppColors.textSecondary.withValues(
-                                          alpha: 0.3,
-                                        ),
+                                      : AppColors.textSecondary.withOpacity(0.3),
                                 ),
                               ),
                               padding: const EdgeInsets.symmetric(

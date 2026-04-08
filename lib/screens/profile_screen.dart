@@ -60,7 +60,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
     } catch (e) {
-      print('Error loading performance data: $e');
+      debugPrint('Error loading performance data: $e');
       if (mounted) {
         setState(() {
           _isLoadingPerformance = false;

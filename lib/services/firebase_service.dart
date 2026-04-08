@@ -144,7 +144,7 @@ class FirebaseService {
                       await batch.commit();
                     }
                   } catch (e) {
-                    print('Error migrating $coll ($field) for $suspectId: $e');
+                    debugPrint('Error migrating $coll ($field) for $suspectId: $e');
                   }
                 }
               }
@@ -169,7 +169,7 @@ class FirebaseService {
 
       return null;
     } catch (e) {
-      print('Sign in error: $e');
+      debugPrint('Sign in error: $e');
       return null;
     }
   }
@@ -309,7 +309,7 @@ class FirebaseService {
 
       return null;
     } catch (e) {
-      print('Get user by email error: $e');
+      debugPrint('Get user by email error: $e');
       return null;
     }
   }
@@ -331,7 +331,7 @@ class FirebaseService {
 
       return users;
     } catch (e) {
-      print('Get users error: $e');
+      debugPrint('Get users error: $e');
       return [];
     }
   }
@@ -342,7 +342,7 @@ class FirebaseService {
       final String? email = userData['email'];
 
       if (email == null || password == null) {
-        print('Email and Password are required for Auth registration');
+        debugPrint('Email and Password are required for Auth registration');
         return null;
       }
 
@@ -361,7 +361,7 @@ class FirebaseService {
         );
         await secondaryApp.delete();
       } catch (e) {
-        print('Secondary Auth creation error: $e');
+        debugPrint('Secondary Auth creation error: $e');
         // Fallback or rethrow based on error
         rethrow;
       }
@@ -407,7 +407,7 @@ class FirebaseService {
 
       return uid;
     } catch (e) {
-      print('Add user error: $e');
+      debugPrint('Add user error: $e');
       return null;
     }
   }
@@ -420,7 +420,7 @@ class FirebaseService {
       });
       return true;
     } catch (e) {
-      print('Update user error: $e');
+      debugPrint('Update user error: $e');
       return false;
     }
   }
@@ -441,7 +441,7 @@ class FirebaseService {
       await _firestore.collection(usersCollection).doc(id).delete();
       return true;
     } catch (e) {
-      print('Delete user error: $e');
+      debugPrint('Delete user error: $e');
       return false;
     }
   }
@@ -454,7 +454,7 @@ class FirebaseService {
       });
       return true;
     } catch (e) {
-      print('Toggle user status error: $e');
+      debugPrint('Toggle user status error: $e');
       return false;
     }
   }
@@ -470,7 +470,7 @@ class FirebaseService {
           .map((doc) => {'id': doc.id, ...doc.data() as Map<String, dynamic>})
           .toList();
     } catch (e) {
-      print('Get enquiries error: $e');
+      debugPrint('Get enquiries error: $e');
       return [];
     }
   }
@@ -486,7 +486,7 @@ class FirebaseService {
           });
       return docRef.id;
     } catch (e) {
-      print('Add enquiry error: $e');
+      debugPrint('Add enquiry error: $e');
       return null;
     }
   }
@@ -502,7 +502,7 @@ class FirebaseService {
       });
       return true;
     } catch (e) {
-      print('Update enquiry error: $e');
+      debugPrint('Update enquiry error: $e');
       return false;
     }
   }
@@ -518,7 +518,7 @@ class FirebaseService {
           .map((doc) => {'id': doc.id, ...doc.data() as Map<String, dynamic>})
           .toList();
     } catch (e) {
-      print('Get college visits error: $e');
+      debugPrint('Get college visits error: $e');
       return [];
     }
   }
@@ -534,7 +534,7 @@ class FirebaseService {
           });
       return docRef.id;
     } catch (e) {
-      print('Add college visit error: $e');
+      debugPrint('Add college visit error: $e');
       return null;
     }
   }
@@ -550,7 +550,7 @@ class FirebaseService {
       });
       return true;
     } catch (e) {
-      print('Update college visit error: $e');
+      debugPrint('Update college visit error: $e');
       return false;
     }
   }
@@ -566,7 +566,7 @@ class FirebaseService {
           .map((doc) => {'id': doc.id, ...doc.data() as Map<String, dynamic>})
           .toList();
     } catch (e) {
-      print('Get follow ups error: $e');
+      debugPrint('Get follow ups error: $e');
       return [];
     }
   }
@@ -582,7 +582,7 @@ class FirebaseService {
           });
       return docRef.id;
     } catch (e) {
-      print('Add follow up error: $e');
+      debugPrint('Add follow up error: $e');
       return null;
     }
   }
@@ -611,7 +611,7 @@ class FirebaseService {
           .map((doc) => {'id': doc.id, ...doc.data() as Map<String, dynamic>})
           .toList();
     } catch (e) {
-      print('Get tasks error: $e');
+      debugPrint('Get tasks error: $e');
       return [];
     }
   }
@@ -627,7 +627,7 @@ class FirebaseService {
           });
       return docRef.id;
     } catch (e) {
-      print('Add task error: $e');
+      debugPrint('Add task error: $e');
       return null;
     }
   }
@@ -698,7 +698,7 @@ class FirebaseService {
         'conversions': enquiryConversions.docs.length + leadConversions.docs.length,
       };
     } catch (e) {
-      print('Get dashboard stats error: $e');
+      debugPrint('Get dashboard stats error: $e');
       return {
         'todayEnquiries': 0,
         'todayVisits': 0,
@@ -793,7 +793,7 @@ class FirebaseService {
         'conversions': enquiryConversions.docs.length + leadConversions.docs.length,
       };
     } catch (e) {
-      print('Get user dashboard stats error: $e');
+      debugPrint('Get user dashboard stats error: $e');
       // Fallback: calculate stats from all data
       try {
         final allEnquiries = await getEnquiries();
@@ -845,7 +845,7 @@ class FirebaseService {
               .length,
         };
       } catch (fallbackError) {
-        print('Fallback get user dashboard stats error: $fallbackError');
+        debugPrint('Fallback get user dashboard stats error: $fallbackError');
         return {
           'todayEnquiries': 0,
           'todayVisits': 0,
@@ -874,7 +874,7 @@ class FirebaseService {
           .map((doc) => {'id': doc.id, ...doc.data() as Map<String, dynamic>})
           .toList();
     } catch (e) {
-      print('Get user enquiries error: $e');
+      debugPrint('Get user enquiries error: $e');
       // Fallback: get all enquiries and filter in memory
       try {
         final allEnquiries = await getEnquiries();
@@ -882,7 +882,7 @@ class FirebaseService {
             .where((enquiry) => enquiry['createdBy'] == userId)
             .toList();
       } catch (fallbackError) {
-        print('Fallback get user enquiries error: $fallbackError');
+        debugPrint('Fallback get user enquiries error: $fallbackError');
         return [];
       }
     }
@@ -902,7 +902,7 @@ class FirebaseService {
           .map((doc) => {'id': doc.id, ...doc.data() as Map<String, dynamic>})
           .toList();
     } catch (e) {
-      print('Get user college visits error: $e');
+      debugPrint('Get user college visits error: $e');
       // Fallback: get all visits and filter in memory
       try {
         final allVisits = await getCollegeVisits();
@@ -910,7 +910,7 @@ class FirebaseService {
             .where((visit) => visit['createdBy'] == userId)
             .toList();
       } catch (fallbackError) {
-        print('Fallback get user college visits error: $fallbackError');
+        debugPrint('Fallback get user college visits error: $fallbackError');
         return [];
       }
     }
@@ -930,7 +930,7 @@ class FirebaseService {
           .map((doc) => {'id': doc.id, ...doc.data() as Map<String, dynamic>})
           .toList();
     } catch (e) {
-      print('Get user follow ups error: $e');
+      debugPrint('Get user follow ups error: $e');
       // Fallback: get all follow-ups and filter in memory
       try {
         final allFollowUps = await getFollowUps();
@@ -938,7 +938,7 @@ class FirebaseService {
             .where((followUp) => followUp['createdBy'] == userId)
             .toList();
       } catch (fallbackError) {
-        print('Fallback get user follow ups error: $fallbackError');
+        debugPrint('Fallback get user follow ups error: $fallbackError');
         return [];
       }
     }
@@ -979,7 +979,7 @@ class FirebaseService {
 
       return roles;
     } catch (e) {
-      print('Get roles error: $e');
+      debugPrint('Get roles error: $e');
       return [];
     }
   }
@@ -999,7 +999,7 @@ class FirebaseService {
           });
       return docRef.id;
     } catch (e) {
-      print('Add role error: $e');
+      debugPrint('Add role error: $e');
       return null;
     }
   }
@@ -1012,7 +1012,7 @@ class FirebaseService {
       });
       return true;
     } catch (e) {
-      print('Update role error: $e');
+      debugPrint('Update role error: $e');
       return false;
     }
   }
@@ -1022,7 +1022,7 @@ class FirebaseService {
       await _firestore.collection(rolesCollection).doc(id).delete();
       return true;
     } catch (e) {
-      print('Delete role error: $e');
+      debugPrint('Delete role error: $e');
       return false;
     }
   }
@@ -1035,7 +1035,7 @@ class FirebaseService {
       });
       return true;
     } catch (e) {
-      print('Toggle role status error: $e');
+      debugPrint('Toggle role status error: $e');
       return false;
     }
   }
@@ -1053,7 +1053,7 @@ class FirebaseService {
       }
       return null;
     } catch (e) {
-      print('Get role by id error: $e');
+      debugPrint('Get role by id error: $e');
       return null;
     }
   }
@@ -1071,7 +1071,7 @@ class FirebaseService {
       }
       return null;
     } catch (e) {
-      print('Get role by name error: $e');
+      debugPrint('Get role by name error: $e');
       return null;
     }
   }
@@ -1114,7 +1114,7 @@ class FirebaseService {
       // Also initialize labels
       await initializeDefaultLabels();
     } catch (e) {
-      print('Initialize default roles error: $e');
+      debugPrint('Initialize default roles error: $e');
     }
   }
 
@@ -1138,7 +1138,7 @@ class FirebaseService {
         }
       }
     } catch (e) {
-      print('Initialize default labels error: $e');
+      debugPrint('Initialize default labels error: $e');
     }
   }
 
@@ -1207,7 +1207,7 @@ class FirebaseService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print('Set number category error: $e');
+      debugPrint('Set number category error: $e');
     }
   }
 
@@ -1222,7 +1222,7 @@ class FirebaseService {
       }
       return null;
     } catch (e) {
-      print('Get number category error: $e');
+      debugPrint('Get number category error: $e');
       return null;
     }
   }
@@ -1532,7 +1532,7 @@ class FirebaseService {
 
       return sourceStats;
     } catch (e) {
-      print('Get lead source stats error: $e');
+      debugPrint('Get lead source stats error: $e');
       return {};
     }
   }

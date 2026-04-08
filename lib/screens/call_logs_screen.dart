@@ -498,7 +498,7 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
         // ── Info banner ──
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          color: AppColors.primary.withValues(alpha: 0.07),
+          color: AppColors.primary.withOpacity(0.07),
           child: Row(
             children: [
               const Icon(Icons.info_outline,
@@ -569,7 +569,7 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
           ListTile(
             leading: CircleAvatar(
               backgroundColor:
-                  _getCallTypeColor(entry.callType).withValues(alpha: 0.1),
+                  _getCallTypeColor(entry.callType).withOpacity(0.1),
               child: Icon(
                 _getCallTypeIcon(entry.callType),
                 color: _getCallTypeColor(entry.callType),
@@ -599,7 +599,7 @@ class _CallLogsScreenState extends State<CallLogsScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
+                      color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(

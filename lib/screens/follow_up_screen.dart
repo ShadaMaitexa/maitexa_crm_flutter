@@ -251,7 +251,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
         borderRadius: BorderRadius.circular(AppSizes.radiusM),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 5,
             offset: const Offset(0, 2),
           ),
@@ -263,10 +263,10 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
             padding: const EdgeInsets.all(AppSizes.paddingS),
             decoration: BoxDecoration(
               color: isOverdue
-                  ? AppColors.error.withValues(alpha: 0.1)
+                  ? AppColors.error.withOpacity(0.1)
                   : isToday
-                  ? AppColors.warning.withValues(alpha: 0.1)
-                  : AppColors.success.withValues(alpha: 0.1),
+                  ? AppColors.warning.withOpacity(0.1)
+                  : AppColors.success.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -325,7 +325,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _getStatusColor(status).withValues(alpha: 0.1),
+                  color: _getStatusColor(status).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -345,7 +345,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.1),
+                    color: AppColors.error.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Text(

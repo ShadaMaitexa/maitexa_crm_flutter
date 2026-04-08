@@ -106,7 +106,7 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.task_alt, size: 64, color: AppColors.textSecondary.withValues(alpha: 0.2)),
+            Icon(Icons.task_alt, size: 64, color: AppColors.textSecondary.withOpacity(0.2)),
             const SizedBox(height: 16),
             Text(
               emptyMessage,
@@ -138,7 +138,7 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
         borderRadius: BorderRadius.circular(AppSizes.radiusL),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -182,13 +182,13 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Icon(Icons.access_time, size: 14, color: AppColors.primary.withValues(alpha: 0.7)),
+                    Icon(Icons.access_time, size: 14, color: AppColors.primary.withOpacity(0.7)),
                     const SizedBox(width: 4),
                     Text(
                       dateStr,
                       style: TextStyle(
                         fontSize: 12,
-                        color: AppColors.primary.withValues(alpha: 0.7),
+                        color: AppColors.primary.withOpacity(0.7),
                         fontWeight: FontWeight.w500,
                       ),
                     ),

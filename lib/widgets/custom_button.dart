@@ -105,7 +105,7 @@ class _CustomButtonState extends State<CustomButton>
                   borderRadius: BorderRadius.circular(AppSizes.radiusM),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: _isHovered ? 0.2 : 0.1),
+                      color: Colors.black.withOpacity(_isHovered ? 0.2 : 0.1),
                       blurRadius: _isHovered ? 15 : 8,
                       offset: Offset(0, _isHovered ? 6 : 4),
                       spreadRadius: _isHovered ? 2 : 0,
@@ -135,7 +135,7 @@ class _CustomButtonState extends State<CustomButton>
                                 end: Alignment.bottomRight,
                                 colors: [
                                   (widget.backgroundColor ?? AppColors.primary)
-                                      .withValues(alpha: 0.8),
+                                      .withOpacity(0.8),
                                   widget.backgroundColor ?? AppColors.primary,
                                 ],
                               )

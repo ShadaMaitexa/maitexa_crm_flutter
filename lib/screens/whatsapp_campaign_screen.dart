@@ -87,7 +87,7 @@ class _WhatsAppCampaignScreenState extends State<WhatsAppCampaignScreen>
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: const Color(0xFF25D366).withValues(alpha: 0.15),
+                color: const Color(0xFF25D366).withOpacity(0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const FaIcon(
@@ -304,7 +304,7 @@ class _EmptyCampaignState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: const Color(0xFF25D366).withValues(alpha: 0.15),
+                color: const Color(0xFF25D366).withOpacity(0.15),
                 shape: BoxShape.circle,
               ),
               child: const FaIcon(
@@ -408,7 +408,7 @@ class _CampaignCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: _sourceColor.withValues(alpha: 0.15),
+                    color: _sourceColor.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: _isFaIcon
@@ -444,7 +444,7 @@ class _CampaignCard extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.success.withValues(alpha: 0.15),
+                    color: AppColors.success.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -644,9 +644,9 @@ class _ActionBtn extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.15),
+          color: color.withOpacity(0.15),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.15)),
+          border: Border.all(color: color.withOpacity(0.15)),
         ),
         child: Column(
           children: [
@@ -789,13 +789,13 @@ class _CreateCampaignTabState extends State<_CreateCampaignTab> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    const Color(0xFF25D366).withValues(alpha: 0.15),
-                    AppColors.primary.withValues(alpha: 0.15),
+                    const Color(0xFF25D366).withOpacity(0.15),
+                    AppColors.primary.withOpacity(0.15),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: const Color(0xFF25D366).withValues(alpha: 0.15),
+                  color: const Color(0xFF25D366).withOpacity(0.15),
                 ),
               ),
               child: Row(
@@ -891,7 +891,7 @@ class _CreateCampaignTabState extends State<_CreateCampaignTab> {
                     ),
                     decoration: BoxDecoration(
                       color: selected
-                          ? s.color.withValues(alpha: 0.15)
+                          ? s.color.withOpacity(0.15)
                           : AppColors.surface,
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(

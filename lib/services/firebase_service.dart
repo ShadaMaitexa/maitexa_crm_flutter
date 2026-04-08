@@ -1372,7 +1372,22 @@ class FirebaseService {
     // 2. Update the associated lead status accordingly
     try {
       final callDoc = await _firestore.collection(callsCollection).doc(callId).get();
-      final leadId = callDoc.data()?['lead_id'] as String?;
+      final data = callDoc.data();
+      String? leadId = data?['lead_id'] as String?;
+      final String? phoneNumber = data?['phone_number'] as String?;
+
+      if (leadId == null && phoneNumber != null) {
+        // Try to find lead by phone if not linked
+        final leadSnap = await _firestore.collection(leadsCollection)
+            .where('phone', isEqualTo: phoneNumber)
+            .limit(1)
+            .get();
+        if (leadSnap.docs.isNotEmpty) {
+          leadId = leadSnap.docs.first.id;
+          // Link the call to this lead for future reference
+          await _firestore.collection(callsCollection).doc(callId).update({'lead_id': leadId});
+        }
+      }
 
       if (leadId != null) {
         if (isConverted) {
@@ -1383,8 +1398,8 @@ class FirebaseService {
             'Lead converted via call log action',
           );
         } else {
-          // Revert lead status back to active when un-converting
-          await updateLead(leadId, {'status': 'Active'});
+          // Revert lead status back when un-converting
+          await updateLead(leadId, {'status': 'Contacted'}); // More natural than 'Active'
           await addActivity(
             leadId,
             'Conversion Reverted',

@@ -30,7 +30,7 @@ class _UpdateEnquiryStatusScreenState extends State<UpdateEnquiryStatusScreen> {
     'contacted',
     'interested',
     'not_interested',
-    'converted',
+    'Converted',
   ];
 
   @override

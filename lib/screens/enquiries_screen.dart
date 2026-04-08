@@ -193,7 +193,7 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
       final data = doc.data() as Map<String, dynamic>;
       
       // Status filter
-      if (_statusFilter != 'all' && data['status'] != _statusFilter) {
+      if (_statusFilter != 'all' && data['status']?.toString().toLowerCase() != _statusFilter.toLowerCase()) {
         return false;
       }
 

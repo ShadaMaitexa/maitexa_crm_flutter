@@ -42,7 +42,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
     'contacted',
     'interested',
     'not_interested',
-    'converted',
+    'Converted',
   ];
 
   @override

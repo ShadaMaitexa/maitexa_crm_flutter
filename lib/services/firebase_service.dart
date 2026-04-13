@@ -1483,9 +1483,21 @@ class FirebaseService {
         .where('created_at', isGreaterThanOrEqualTo: startOfDay)
         .get();
 
+    final QuerySnapshot todayIncoming = await _firestore
+        .collection(callsCollection)
+        .where('call_type', isEqualTo: 'incoming')
+        .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
+        .get();
+
+    final QuerySnapshot todayOutgoing = await _firestore
+        .collection(callsCollection)
+        .where('call_type', isEqualTo: 'outgoing')
+        .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
+        .get();
+
     final QuerySnapshot missedCalls = await _firestore
         .collection(callsCollection)
-        .where('call_type', isEqualTo: 'missed')
+        .where('call_type', whereIn: ['missed', 'rejected'])
         .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
         .get();
 
@@ -1506,6 +1518,9 @@ class FirebaseService {
         .get();
 
     return {
+      'todayIncomingCount': todayIncoming.docs.length,
+      'todayOutgoingCount': todayOutgoing.docs.length,
+      'todayTotalCallsCount': todayIncoming.docs.length + todayOutgoing.docs.length + missedCalls.docs.length,
       'todayLeadsCount': todayLeads.docs.length,
       'missedCallsCount': missedCalls.docs.length,
       'convertedLeadsCount': leadConversions.docs.length + enquiryConversions.docs.length,

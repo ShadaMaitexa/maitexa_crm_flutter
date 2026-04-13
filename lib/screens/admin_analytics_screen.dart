@@ -408,67 +408,167 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
                   color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: () {
-                    final enriched = _filteredCalls.map((c) {
-                      final uid = (c['userId'] ?? c['user_id'] ?? '').toString();
-                      final lead = _allLeads.firstWhere(
-                        (l) => l['id'] == c['lead_id'] || l['phone'] == c['phone_number'],
-                        orElse: () => <String, dynamic>{},
-                      );
-                      
-                      // Find latest follow up for this contact
-                      final contactPhone = (c['phone_number'] ?? c['number'] ?? '').toString();
-                      final followUpMatches = _allFollowUps.where((f) => 
-                        (f['phoneNumber'] ?? f['phone'] ?? '').toString() == contactPhone
-                      ).toList()..sort((a,b) {
-                          final aD = _tsToDate(a['followUpDate']);
-                          final bD = _tsToDate(b['followUpDate']);
-                          if (aD == null) return 1;
-                          if (bD == null) return -1;
-                          return bD.compareTo(aD);
-                      });
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () {
+                        final enriched = _filteredCalls.map((c) {
+                          final uid = (c['userId'] ?? c['user_id'] ?? c['createdBy'] ?? '').toString();
+                          final lead = _allLeads.firstWhere(
+                            (l) => l['id'] == c['lead_id'] || l['phone'] == c['phone_number'],
+                            orElse: () => <String, dynamic>{},
+                          );
+                          
+                          // Find latest follow up for this contact
+                          final contactPhone = (c['phone_number'] ?? c['number'] ?? '').toString();
+                          final followUpMatches = _allFollowUps.where((f) => 
+                            (f['phoneNumber'] ?? f['phone'] ?? '').toString() == contactPhone
+                          ).toList()..sort((a,b) {
+                              final aD = _tsToDate(a['followUpDate']);
+                              final bD = _tsToDate(b['followUpDate']);
+                              if (aD == null) return 1;
+                              if (bD == null) return -1;
+                              return bD.compareTo(aD);
+                          });
 
-                      final latestFU = followUpMatches.isNotEmpty ? followUpMatches.first : null;
-                      final fuDate = latestFU != null ? _tsToDate(latestFU['followUpDate']) : null;
-                      final fuStaff = latestFU != null ? _findUserName((latestFU['createdBy'] ?? latestFU['userId'])?.toString()) : 'None';
-                      final fuNote = latestFU != null ? (latestFU['notes'] ?? latestFU['note'] ?? '').toString() : '';
+                          final latestFU = followUpMatches.isNotEmpty ? followUpMatches.first : null;
+                          final fuDate = latestFU != null ? _tsToDate(latestFU['followUpDate']) : null;
+                          final fuStaff = latestFU != null ? _findUserName((latestFU['createdBy'] ?? latestFU['userId'])?.toString()) : 'None';
+                          final fuNote = latestFU != null ? (latestFU['notes'] ?? latestFU['note'] ?? '').toString() : '';
 
-                      return {
-                        ...c,
-                        'userName': _findUserName(uid),
-                        'isHot': _isHotDeal(lead),
-                        'isConverted': _isConverted(lead),
-                        'status': lead['status'] ?? c['status'] ?? '',
-                        'label': _leadLabel(lead).isEmpty ? (c['label'] ?? '') : _leadLabel(lead),
-                        'followUpDate': fuDate != null ? DateFormat('MMM d, yyyy').format(fuDate) : 'None',
-                        'followUpStaff': fuStaff,
-                        'followUpNote': fuNote,
-                      };
-                    }).toList();
+                          // ENRICHMENT: Fetch additional notes from phoneNotes for this number
+                          final relatedPhoneNotes = _allPhoneNotes.where((n) {
+                             final nPhone = (n['phoneNumber'] ?? n['phone'] ?? '').toString();
+                             return nPhone == contactPhone && nPhone.isNotEmpty;
+                          }).map((n) => n['note'] ?? n['message'] ?? '').where((n) => n.toString().isNotEmpty).toList();
+                          
+                          String existingNote = (c['note'] ?? c['notes'] ?? '').toString();
+                          List<String> allNotes = [if (existingNote.isNotEmpty) existingNote, ...relatedPhoneNotes.map((e) => e.toString())];
 
-                    final dateRangeStr = '${DateFormat('MMM d').format(_startDate)}-${DateFormat('MMM d').format(_endDate)}';
-                    final staffSuffix = _selectedUserId != null ? '_${_findUserName(_selectedUserId).replaceAll(' ', '_')}' : '_All_Staff';
-                    final fullFileName = 'CRM_Report${staffSuffix}_$dateRangeStr';
-                    
-                    if (enriched.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('No call logs found in this range to export.'),
-                          backgroundColor: Colors.orange,
-                        )
-                      );
-                      return;
-                    }
-                    
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Starting export...'))
-                    );
-                    ExportService.exportCallsToCsv(enriched, fullFileName);
-                  },
-                  icon: const Icon(Icons.file_download, color: AppColors.primary, size: 20),
-                  tooltip: 'Export to Excel',
+                          return {
+                            ...c,
+                            'userName': _findUserName(uid),
+                            'isHot': _isHotDeal(lead),
+                            'isConverted': _isConverted(lead),
+                            'status': lead['status'] ?? c['status'] ?? '',
+                            'label': _leadLabel(lead).isEmpty ? (c['label'] ?? '') : _leadLabel(lead),
+                            'followUpDate': fuDate != null ? DateFormat('MMM d, yyyy').format(fuDate) : 'None',
+                            'followUpStaff': fuStaff,
+                            'followUpNote': fuNote,
+                            'notes': allNotes, // Service will join these
+                          };
+                        }).toList();
+
+                        final dateRangeStr = '${DateFormat('MMM d').format(_startDate)}-${DateFormat('MMM d').format(_endDate)}';
+                        final staffSuffix = _selectedUserId != null ? '_${_findUserName(_selectedUserId).replaceAll(' ', '_')}' : '_All_Staff';
+                        final fullFileName = 'CallLogs_${staffSuffix}_$dateRangeStr';
+                        
+                        if (enriched.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('No call logs found in this range to export.'),
+                              backgroundColor: Colors.orange,
+                            )
+                          );
+                          return;
+                        }
+                        
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Exporting Call Logs...'))
+                        );
+                        ExportService.exportCallsToCsv(enriched, fullFileName);
+                      },
+                      icon: const Icon(Icons.call_outlined, color: AppColors.primary, size: 20),
+                      tooltip: 'Export Call Logs',
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () {
+                        // MASTER PROGRESS REPORT LOGIC
+                        final masterData = _allLeads.map((l) {
+                          final phone = (l['phone'] ?? l['phoneNumber'] ?? '').toString();
+                          
+                          // 1. Gather all calls for this lead
+                          final leadCalls = _allCalls.where((c) => 
+                            (c['phone_number'] ?? c['number'] ?? '').toString() == phone && phone.isNotEmpty
+                          ).toList();
+                          
+                          final inc = leadCalls.where((c) => _callType(c) == 'Incoming').length;
+                          final out = leadCalls.where((c) => _callType(c) == 'Outgoing').length;
+                          final mis = leadCalls.where((c) => _callType(c) == 'Missed').length;
+                          
+                          DateTime? lastCallDt;
+                          if (leadCalls.isNotEmpty) {
+                            leadCalls.sort((a,b) {
+                              final aD = _tsToDate(a['timestamp'] ?? a['createdAt']) ?? DateTime(2000);
+                              final bD = _tsToDate(b['timestamp'] ?? b['createdAt']) ?? DateTime(2000);
+                              return bD.compareTo(aD);
+                            });
+                            lastCallDt = _tsToDate(leadCalls.first['timestamp'] ?? leadCalls.first['createdAt']);
+                          }
+                          
+                          // 2. Gather latest note
+                          final relatedNotes = _allPhoneNotes.where((n) => 
+                            (n['phoneNumber'] ?? n['phone'] ?? '').toString() == phone && phone.isNotEmpty
+                          ).toList()..sort((a,b) {
+                             final aD = _tsToDate(a['createdAt'] ?? a['timestamp']) ?? DateTime(2000);
+                             final bD = _tsToDate(b['createdAt'] ?? b['timestamp']) ?? DateTime(2000);
+                             return bD.compareTo(aD);
+                          });
+                          
+                          final latestNote = relatedNotes.isNotEmpty ? (relatedNotes.first['note'] ?? relatedNotes.first['message'] ?? '') : '';
+                          
+                          // 3. Gather latest follow up
+                          final relatedFU = _allFollowUps.where((f) => 
+                            (f['phoneNumber'] ?? f['phone'] ?? '').toString() == phone && phone.isNotEmpty
+                          ).toList()..sort((a,b) {
+                             final aD = _tsToDate(a['followUpDate']) ?? DateTime(2000);
+                             final bD = _tsToDate(b['followUpDate']) ?? DateTime(2000);
+                             return bD.compareTo(aD);
+                          });
+                          
+                          final latestFU = relatedFU.isNotEmpty ? relatedFU.first : null;
+                          final fuDate = latestFU != null ? _tsToDate(latestFU['followUpDate']) : null;
+                          final fuNote = latestFU != null ? (latestFU['notes'] ?? latestFU['note'] ?? '') : '';
+                          final fuStaff = latestFU != null ? _findUserName((latestFU['createdBy'] ?? latestFU['userId'])?.toString()) : 'None';
+
+                          return {
+                            ...l,
+                            'totalCalls': leadCalls.length,
+                            'incomingCalls': inc,
+                            'outgoingCalls': out,
+                            'missedCalls': mis,
+                            'lastCallDate': lastCallDt != null ? DateFormat('dd-MM-yyyy').format(lastCallDt) : 'None',
+                            'staffName': _findUserName((l['createdBy'] ?? l['user_id'] ?? l['userId'])?.toString()),
+                            'latestNote': latestNote,
+                            'followUpDate': fuDate != null ? DateFormat('dd-MM-yyyy').format(fuDate) : 'None',
+                            'followUpNote': fuNote,
+                            'followUpStaff': fuStaff,
+                          };
+                        }).toList();
+
+                        if (masterData.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('No lead data found to export.'))
+                          );
+                          return;
+                        }
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Exporting Master Progress Report...'))
+                        );
+                        
+                        ExportService.exportLeadLifecycleToCsv(masterData, 'Master_Lead_Progress_Export');
+                      },
+                      icon: const Icon(Icons.assignment_outlined, color: AppColors.primary, size: 20),
+                      tooltip: 'Master Progress Report',
+                    ),
+                  ],
                 ),
               ),
             ],

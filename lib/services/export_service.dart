@@ -25,7 +25,7 @@ class ExportService {
       else if (dateObj is int) dt = DateTime.fromMillisecondsSinceEpoch(dateObj);
       else if (dateObj is DateTime) dt = dateObj;
 
-      final dateStr = DateFormat('yyyy-MM-dd').format(dt);
+      final dateStr = DateFormat('dd-MM-yyyy').format(dt);
       final timeStr = DateFormat('HH:mm').format(dt);
       final type = call['call_type'] ?? call['type'] ?? 'Unknown';
       final number = call['phone_number'] ?? call['number'] ?? '';
@@ -58,11 +58,53 @@ class ExportService {
       final cleanFUStaff = fuStaff.toString().replaceAll('"', '""').replaceAll(',', ';');
       final cleanFUNote = fuNote.toString().replaceAll('"', '""').replaceAll(',', ';');
       
-      csvRows.add('$dateStr,$timeStr,$type,$number,"$cleanLabel","$status",$duration,"$cleanName",$isHot,$isConverted,"$cleanFollowUp","$cleanFUStaff","$cleanFUNote","$cleanNotes"');
+      // Use \t (tab) prefix for number to prevent scientific notation in Excel
+      csvRows.add('$dateStr,$timeStr,$type,"\t$number","$cleanLabel","$status",$duration,"$cleanName",$isHot,$isConverted,"$cleanFollowUp","$cleanFUStaff","$cleanFUNote","$cleanNotes"');
     }
 
     final String csvContent = csvRows.join('\r\n'); // Use CRLF for better Excel compatibility
     
+    await FileSaver.saveAndShare(csvContent, '${fileName}.csv');
+  }
+
+  static Future<void> exportLeadLifecycleToCsv(List<Map<String, dynamic>> data, String fileName) async {
+    if (data.isEmpty) return;
+
+    final List<String> csvRows = [];
+    
+    // Header for Lead Lifecycle Report
+    csvRows.add('Name,Phone,Label,Status,Organization,Created Date,Total Calls,Incoming,Outgoing,Missed,Last Call,Staff,Latest Note,Follow-Up,FU Note,FU Staff');
+
+    for (var lead in data) {
+      final name = lead['name'] ?? 'Unknown';
+      final phone = (lead['phone'] ?? lead['phoneNumber'] ?? '').toString();
+      final label = lead['label'] ?? '';
+      final status = lead['status'] ?? '';
+      final org = lead['organization'] ?? 'Acadeno CRM';
+      
+      final createdObj = lead['created_at'] ?? lead['createdAt'] ?? lead['timestamp'];
+      DateTime createdDt = DateTime.now();
+      if (createdObj is Timestamp) createdDt = createdObj.toDate();
+      else if (createdObj is int) createdDt = DateTime.fromMillisecondsSinceEpoch(createdObj);
+      else if (createdObj is DateTime) createdDt = createdObj;
+      final createdStr = DateFormat('dd-MM-yyyy').format(createdDt);
+
+      final totalCalls = lead['totalCalls'] ?? 0;
+      final incoming = lead['incomingCalls'] ?? 0;
+      final outgoing = lead['outgoingCalls'] ?? 0;
+      final missed = lead['missedCalls'] ?? 0;
+      final lastCall = lead['lastCallDate'] ?? 'None';
+      final staff = lead['staffName'] ?? lead['userName'] ?? 'Unknown';
+      
+      final latestNote = (lead['latestNote'] ?? '').toString().replaceAll('"', '""').replaceAll(',', ';').replaceAll('\n', ' ');
+      final fuDate = lead['followUpDate'] ?? 'None';
+      final fuNote = (lead['followUpNote'] ?? '').toString().replaceAll('"', '""').replaceAll(',', ';').replaceAll('\n', ' ');
+      final fuStaff = lead['followUpStaff'] ?? 'None';
+
+      csvRows.add('"$name","\t$phone","$label","$status","$org",$createdStr,$totalCalls,$incoming,$outgoing,$missed,"$lastCall","$staff","$latestNote","$fuDate","$fuNote","$fuStaff"');
+    }
+
+    final String csvContent = csvRows.join('\r\n');
     await FileSaver.saveAndShare(csvContent, '${fileName}.csv');
   }
 }

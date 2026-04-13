@@ -1019,12 +1019,10 @@ class _DashboardContentState extends State<DashboardContent>
     );
   }
 
-  Widget _buildMetricsGrid(DashboardProvider dashboardProvider) {
-    final stats = dashboardProvider.stats;
-    final todayCalls = stats['todayCalls'] ?? 0;
+    final todayTotal = stats['todayCalls'] ?? 0;
+    final todayIncoming = stats['incomingCalls'] ?? 0;
+    final todayOutgoing = stats['outgoingCalls'] ?? 0;
     final missedCalls = stats['missedCalls'] ?? 0;
-    final convertedLeads = stats['convertedLeads'] ?? 0;
-    final pendingFollowUps = stats['pendingFollowUps'] ?? 0;
 
     return GridView.count(
       shrinkWrap: true,
@@ -1032,31 +1030,31 @@ class _DashboardContentState extends State<DashboardContent>
       crossAxisCount: 2,
       crossAxisSpacing: AppSizes.paddingM,
       mainAxisSpacing: AppSizes.paddingM,
-      childAspectRatio: 1.2,
+      childAspectRatio: 1.4,
       children: [
         _buildMetricCard(
-          icon: Icons.phone,
+          icon: Icons.call_received,
+          iconColor: Colors.green,
+          value: '$todayIncoming',
+          label: 'Incoming Today',
+        ),
+        _buildMetricCard(
+          icon: Icons.call_made,
+          iconColor: AppColors.primary,
+          value: '$todayOutgoing',
+          label: 'Outgoing Today',
+        ),
+        _buildMetricCard(
+          icon: Icons.history,
           iconColor: AppColors.info,
-          value: '$todayCalls',
-          label: "Today's Leads",
+          value: '$todayTotal',
+          label: 'Total Calls',
         ),
         _buildMetricCard(
           icon: Icons.call_missed,
           iconColor: AppColors.error,
           value: '$missedCalls',
           label: 'Missed Calls',
-        ),
-        _buildMetricCard(
-          icon: Icons.trending_up,
-          iconColor: AppColors.success,
-          value: '$convertedLeads',
-          label: 'Converted',
-        ),
-        _buildMetricCard(
-          icon: Icons.calendar_today,
-          iconColor: AppColors.warning,
-          value: '$pendingFollowUps',
-          label: 'Pending Follow-ups',
         ),
       ],
     );

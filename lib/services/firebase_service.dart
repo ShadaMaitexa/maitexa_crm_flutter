@@ -1356,10 +1356,37 @@ class FirebaseService {
   }
 
   static Future<void> updateCallLabel(String callId, String label) async {
+    // 1. Update the call document
     await _firestore.collection(callsCollection).doc(callId).update({
       'label': label,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    // 2. Try to sync this label to the Lead document as well
+    try {
+      final callDoc = await _firestore.collection(callsCollection).doc(callId).get();
+      final data = callDoc.data();
+      String? leadId = data?['lead_id'] as String?;
+      final String? phoneNumber = data?['phone_number'] as String?;
+
+      if (leadId == null && phoneNumber != null) {
+        final leadSnap = await _firestore.collection(leadsCollection)
+            .where('phone', isEqualTo: phoneNumber)
+            .limit(1)
+            .get();
+        if (leadSnap.docs.isNotEmpty) {
+          leadId = leadSnap.docs.first.id;
+          // Link for future
+          await _firestore.collection(callsCollection).doc(callId).update({'lead_id': leadId});
+        }
+      }
+
+      if (leadId != null) {
+        await updateLead(leadId, {'label': label});
+      }
+    } catch (e) {
+      debugPrint('Error syncing label to lead: $e');
+    }
   }
 
   static Future<void> updateCallConversion(String callId, bool isConverted) async {

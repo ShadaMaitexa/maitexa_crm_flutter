@@ -1019,6 +1019,8 @@ class _DashboardContentState extends State<DashboardContent>
     );
   }
 
+  Widget _buildMetricsGrid(DashboardProvider dashboardProvider) {
+    final stats = dashboardProvider.stats;
     final todayTotal = stats['todayCalls'] ?? 0;
     final todayIncoming = stats['incomingCalls'] ?? 0;
     final todayOutgoing = stats['outgoingCalls'] ?? 0;

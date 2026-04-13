@@ -197,10 +197,12 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
     if (filter == 'All Calls') return calls;
     if (filter == 'Missed Calls')
       return calls.where((c) => c.callType == 'missed').toList();
+    if (filter == 'New Leads')
+      return calls.where((c) => c.label.toLowerCase().contains('new') || c.label.toLowerCase().contains('enquiry')).toList();
     if (filter == 'Hot Deals')
       return calls.where((c) => c.label == 'Hot Deals').toList();
     if (filter == 'Follow Ups')
-      return calls.where((c) => c.label == 'Follow Up').toList();
+      return calls.where((c) => c.label == 'Follow Up' || c.label == 'Follow up').toList();
     if (filter == 'Converted')
       return calls.where((c) => c.isConverted).toList();
     return calls;

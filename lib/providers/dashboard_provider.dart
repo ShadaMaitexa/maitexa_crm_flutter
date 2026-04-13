@@ -69,7 +69,7 @@ class DashboardProvider extends ChangeNotifier {
       }
 
       // 2. Get Sales Analytics and merge/override
-      final salesStats = await FirebaseService.getSalesAnalytics();
+      final salesStats = await FirebaseService.getSalesAnalytics(userId: _currentUserId);
       _stats.addAll({
         'todayCalls': salesStats['todayTotalCallsCount'], 
         'incomingCalls': salesStats['todayIncomingCount'],

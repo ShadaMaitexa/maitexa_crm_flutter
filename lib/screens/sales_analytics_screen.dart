@@ -4,6 +4,8 @@ import '../constants/app_constants.dart';
 import '../services/firebase_service.dart';
 import 'package:fl_chart/fl_chart.dart';
 
+import '../providers/auth_provider.dart';
+
 class SalesAnalyticsScreen extends StatefulWidget {
   const SalesAnalyticsScreen({super.key});
 
@@ -23,7 +25,9 @@ class _SalesAnalyticsScreenState extends State<SalesAnalyticsScreen> {
 
   Future<void> _loadStats() async {
     setState(() => _isLoading = true);
-    final stats = await FirebaseService.getSalesAnalytics();
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userId = authProvider.user?.id;
+    final stats = await FirebaseService.getSalesAnalytics(userId: userId);
     setState(() {
       _stats = stats;
       _isLoading = false;
@@ -100,27 +104,89 @@ class _SalesAnalyticsScreenState extends State<SalesAnalyticsScreen> {
   }
 
   Widget _buildConversionChart() {
+    final leadsCount = double.tryParse(_stats?['todayLeadsCount']?.toString() ?? '0') ?? 0;
+    final convertedCount = double.tryParse(_stats?['convertedLeadsCount']?.toString() ?? '0') ?? 0; 
+    final missedCount = double.tryParse(_stats?['missedCallsCount']?.toString() ?? '0') ?? 0;
+    final followUpCount = double.tryParse(_stats?['pendingFollowUpsCount']?.toString() ?? '0') ?? 0;
+
+    final hasData = leadsCount > 0 || convertedCount > 0 || missedCount > 0 || followUpCount > 0;
+
     return Card(
       elevation: 0,
-       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: SizedBox(
-          height: 200,
-          child: PieChart(
-            PieChartData(
-              centerSpaceRadius: 40,
-              sectionsSpace: 4,
-              sections: [
-                PieChartSectionData(value: 40, color: Colors.blue, title: 'Inquiry', radius: 50, showTitle: false),
-                PieChartSectionData(value: 30, color: Colors.orange, title: 'Contacted', radius: 50, showTitle: false),
-                PieChartSectionData(value: 20, color: Colors.green, title: 'Converted', radius: 50, showTitle: false),
-                PieChartSectionData(value: 10, color: Colors.red, title: 'Rejected', radius: 50, showTitle: false),
+        child: Column(
+          children: [
+            SizedBox(
+              height: 200,
+              child: !hasData
+                ? const Center(child: Text("No analytics data yet", style: TextStyle(color: AppColors.textSecondary)))
+                : PieChart(
+                    PieChartData(
+                      centerSpaceRadius: 40,
+                      sectionsSpace: 4,
+                      sections: [
+                        if (leadsCount > 0)
+                          PieChartSectionData(
+                            value: leadsCount,
+                            color: Colors.blue,
+                            title: 'Leads',
+                            radius: 50,
+                            showTitle: false,
+                          ),
+                        if (followUpCount > 0)
+                          PieChartSectionData(
+                            value: followUpCount,
+                            color: Colors.orange,
+                            title: 'Pending',
+                            radius: 50,
+                            showTitle: false,
+                          ),
+                        if (convertedCount > 0)
+                          PieChartSectionData(
+                            value: convertedCount,
+                            color: Colors.green,
+                            title: 'Conv.',
+                            radius: 50,
+                            showTitle: false,
+                          ),
+                        if (missedCount > 0)
+                          PieChartSectionData(
+                            value: missedCount,
+                            color: Colors.red,
+                            title: 'Missed',
+                            radius: 50,
+                            showTitle: false,
+                          ),
+                      ],
+                    ),
+                  ),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 16,
+              children: [
+                _buildChartLegend("Leads", Colors.blue),
+                _buildChartLegend("Pending", Colors.orange),
+                _buildChartLegend("Conv.", Colors.green),
+                _buildChartLegend("Missed", Colors.red),
               ],
             ),
-          ),
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildChartLegend(String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 12)),
+      ],
     );
   }
 

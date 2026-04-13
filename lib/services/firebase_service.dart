@@ -1474,48 +1474,61 @@ class FirebaseService {
   }
 
   // Sales Analytics
-  static Future<Map<String, dynamic>> getSalesAnalytics() async {
+  static Future<Map<String, dynamic>> getSalesAnalytics({String? userId}) async {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
 
-    final QuerySnapshot todayLeads = await _firestore
+    Query todayLeadsQ = _firestore
         .collection(leadsCollection)
-        .where('created_at', isGreaterThanOrEqualTo: startOfDay)
-        .get();
-
-    final QuerySnapshot todayIncoming = await _firestore
+        .where('created_at', isGreaterThanOrEqualTo: startOfDay);
+    
+    Query todayIncomingQ = _firestore
         .collection(callsCollection)
         .where('call_type', isEqualTo: 'incoming')
-        .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
-        .get();
+        .where('timestamp', isGreaterThanOrEqualTo: startOfDay);
 
-    final QuerySnapshot todayOutgoing = await _firestore
+    Query todayOutgoingQ = _firestore
         .collection(callsCollection)
         .where('call_type', isEqualTo: 'outgoing')
-        .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
-        .get();
+        .where('timestamp', isGreaterThanOrEqualTo: startOfDay);
 
-    final QuerySnapshot missedCalls = await _firestore
+    Query missedCallsQ = _firestore
         .collection(callsCollection)
         .where('call_type', whereIn: ['missed', 'rejected'])
-        .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
-        .get();
+        .where('timestamp', isGreaterThanOrEqualTo: startOfDay);
 
-    // Get conversions from both leads and enquiries
-    final QuerySnapshot leadConversions = await _firestore
+    if (userId != null && userId != 'admin_001') {
+      todayLeadsQ = todayLeadsQ.where('createdBy', isEqualTo: userId);
+      todayIncomingQ = todayIncomingQ.where('userId', isEqualTo: userId);
+      todayOutgoingQ = todayOutgoingQ.where('userId', isEqualTo: userId);
+      missedCallsQ = missedCallsQ.where('userId', isEqualTo: userId);
+    }
+
+    final QuerySnapshot todayLeads = await todayLeadsQ.get();
+    final QuerySnapshot todayIncoming = await todayIncomingQ.get();
+    final QuerySnapshot todayOutgoing = await todayOutgoingQ.get();
+    final QuerySnapshot missedCalls = await missedCallsQ.get();
+
+    // Get conversions
+    Query leadConvQ = _firestore
         .collection(leadsCollection)
-        .where('status', whereIn: ['Converted', 'converted'])
-        .get();
-
-    final QuerySnapshot enquiryConversions = await _firestore
+        .where('status', whereIn: ['Converted', 'converted']);
+    Query enquiryConvQ = _firestore
         .collection(enquiriesCollection)
-        .where('status', whereIn: ['Converted', 'converted'])
-        .get();
-
-    final QuerySnapshot followUps = await _firestore
+        .where('status', whereIn: ['Converted', 'converted']);
+    Query followUpsQ = _firestore
         .collection(followUpsCollection)
-        .where('status', isEqualTo: 'pending')
-        .get();
+        .where('status', isEqualTo: 'pending');
+
+    if (userId != null && userId != 'admin_001') {
+      leadConvQ = leadConvQ.where('createdBy', isEqualTo: userId);
+      enquiryConvQ = enquiryConvQ.where('createdBy', isEqualTo: userId);
+      followUpsQ = followUpsQ.where('createdBy', isEqualTo: userId);
+    }
+
+    final QuerySnapshot leadConversions = await leadConvQ.get();
+    final QuerySnapshot enquiryConversions = await enquiryConvQ.get();
+    final QuerySnapshot followUps = await followUpsQ.get();
 
     return {
       'todayIncomingCount': todayIncoming.docs.length,

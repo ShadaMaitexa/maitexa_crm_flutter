@@ -402,8 +402,7 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen>
                 ),
               ),
               Container(
-                height: 36,
-                width: 36,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),

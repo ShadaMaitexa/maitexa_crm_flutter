@@ -12,8 +12,6 @@ class ExportService {
     if (calls.isEmpty) return;
 
     final List<String> csvRows = [];
-    
-    // Streamlined header (removed Duration, Status, FU Staff as they are often unrequired)
     csvRows.add('Date,Time,Type,Number,Label,Staff,Hot Deal,Converted,Follow-Up,Notes');
 
     for (var call in calls) {

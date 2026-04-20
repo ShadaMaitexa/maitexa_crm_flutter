@@ -288,6 +288,10 @@ class FirebaseService {
     await _auth.signOut();
   }
 
+  static Future<void> sendPasswordResetEmail(String email) async {
+    await _auth.sendPasswordResetEmail(email: email);
+  }
+
   static Future<User?> getCurrentUser() async {
     // This would need to be implemented with SharedPreferences or similar
     // For now, return null

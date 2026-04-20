@@ -63,11 +63,28 @@ class AuthProvider extends ChangeNotifier {
         return false;
       }
     } catch (e) {
-      _error = e.toString();
+      _error = 'Invalid credentials';
       _isLoading = false;
       _isAuthenticated = false;
       notifyListeners();
       return false;
+    }
+  }
+
+  Future<void> forgotPassword(String email) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      await FirebaseService.sendPasswordResetEmail(email);
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      rethrow;
     }
   }
 

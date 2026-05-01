@@ -15,7 +15,8 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class EnquiriesScreen extends StatefulWidget {
-  const EnquiriesScreen({super.key});
+  final String? initialFilter;
+  const EnquiriesScreen({super.key, this.initialFilter});
 
   @override
   State<EnquiriesScreen> createState() => _EnquiriesScreenState();
@@ -23,7 +24,13 @@ class EnquiriesScreen extends StatefulWidget {
 
 class _EnquiriesScreenState extends State<EnquiriesScreen> {
   String _searchQuery = '';
-  String _statusFilter = 'all';
+  late String _statusFilter;
+
+  @override
+  void initState() {
+    super.initState();
+    _statusFilter = widget.initialFilter ?? 'all';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,13 +49,22 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Enquiries',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
+                  Row(
+                    children: [
+                      if (Navigator.canPop(context))
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      const Text(
+                        'Leads / Enquiries',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
                   ),
                   Container(
                     decoration: const BoxDecoration(
@@ -94,6 +110,8 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
                 child: Row(
                   children: [
                     _buildFilterChip('All', 'all'),
+                    const SizedBox(width: AppSizes.paddingS),
+                    _buildFilterChip('Hot 🔥', 'hot'),
                     const SizedBox(width: AppSizes.paddingS),
                     _buildFilterChip('New', 'new'),
                     const SizedBox(width: AppSizes.paddingS),
@@ -193,7 +211,12 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
       final data = doc.data() as Map<String, dynamic>;
       
       // Status filter
-      if (_statusFilter != 'all' && data['status']?.toString().toLowerCase() != _statusFilter.toLowerCase()) {
+      if (_statusFilter == 'hot') {
+        final status = data['status']?.toString().toLowerCase() ?? '';
+        final label = data['label']?.toString().toLowerCase() ?? '';
+        final isHot = data['isHot'] == true || status.contains('hot') || label.contains('hot') || status == 'interested';
+        if (!isHot) return false;
+      } else if (_statusFilter != 'all' && data['status']?.toString().toLowerCase() != _statusFilter.toLowerCase()) {
         return false;
       }
 

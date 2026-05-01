@@ -19,6 +19,7 @@ import 'call_logs_screen.dart';
 import 'sales_analytics_screen.dart';
 import 'add_task_screen.dart';
 import 'tasks_screen.dart';
+import 'enquiries_screen.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -270,7 +271,7 @@ class _DashboardContentState extends State<DashboardContent>
     );
 
     // Create staggered animations for different sections
-    _fadeAnimations = List.generate(6, (index) {
+    _fadeAnimations = List.generate(7, (index) {
       return Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(
           parent: _staggerController,
@@ -283,7 +284,7 @@ class _DashboardContentState extends State<DashboardContent>
       );
     });
 
-    _slideAnimations = List.generate(6, (index) {
+    _slideAnimations = List.generate(7, (index) {
       return Tween<Offset>(
         begin: const Offset(0, 0.3),
         end: Offset.zero,
@@ -405,6 +406,14 @@ class _DashboardContentState extends State<DashboardContent>
       await _refreshAllData();
       CustomSnackBar.showSuccess(context, 'Task added successfully!');
     }
+  }
+
+  Future<void> _navigateToHotLeads() async {
+    await Navigator.of(context).push(
+      CustomPageTransition(
+        child: const EnquiriesScreen(initialFilter: 'hot'),
+      ),
+    );
   }
 
   @override
@@ -758,11 +767,62 @@ class _DashboardContentState extends State<DashboardContent>
                   ),
                 ),
 
-                // Today's Tasks & Goals - Animated
+                // Hot Leads - Animated
                 FadeTransition(
                   opacity: _fadeAnimations[5],
                   child: SlideTransition(
                     position: _slideAnimations[5],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            ResponsiveHelper.responsiveTextBuilder(
+                              context: context,
+                              text: 'Hot Leads 🔥',
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: _navigateToHotLeads,
+                              child: ResponsiveHelper.responsiveTextBuilder(
+                                context: context,
+                                text: AppStrings.viewAll,
+                                style: const TextStyle(
+                                  color: AppColors.primary,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(
+                          height: ResponsiveHelper.getResponsiveSpacing(
+                            context,
+                            AppSizes.paddingL,
+                          ),
+                        ),
+                        _buildHotLeadsList(dashboardProvider),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  height: ResponsiveHelper.getResponsiveSpacing(
+                    context,
+                    AppSizes.paddingXL,
+                  ),
+                ),
+
+                // Today's Tasks & Goals - Animated
+                FadeTransition(
+                  opacity: _fadeAnimations[6],
+                  child: SlideTransition(
+                    position: _slideAnimations[6],
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -919,8 +979,20 @@ class _DashboardContentState extends State<DashboardContent>
           children: [
             Expanded(
               child: _buildQuickActionCard(
+                title: "Hot Leads",
+                subtitle: "View interested",
+                icon: Icons.whatshot,
+                color: Colors.red,
+                onTap: () {
+                  _navigateToHotLeads();
+                },
+              ),
+            ),
+            const SizedBox(width: AppSizes.paddingM),
+            Expanded(
+              child: _buildQuickActionCard(
                 title: "View Notes",
-                subtitle: "Recent call notes",
+                subtitle: "Recent notes",
                 icon: Icons.note_outlined,
                 color: Colors.purple,
                 onTap: () {
@@ -932,7 +1004,7 @@ class _DashboardContentState extends State<DashboardContent>
             Expanded(
               child: _buildQuickActionCard(
                 title: "Schedule",
-                subtitle: "Add Follow-up",
+                subtitle: "Follow-up",
                 icon: Icons.calendar_today_outlined,
                 color: Colors.orange,
                 onTap: () {
@@ -1130,6 +1202,41 @@ class _DashboardContentState extends State<DashboardContent>
               subtitle: activity['subtitle'],
               time: activity['time'],
               statusColor: activity['statusColor'],
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Widget _buildHotLeadsList(DashboardProvider dashboardProvider) {
+    final hotLeads = dashboardProvider.hotLeads;
+
+    if (hotLeads.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            'No hot leads right now',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: hotLeads
+          .take(5)
+          .map(
+            (lead) => InkWell(
+              onTap: () => _navigateToHotLeads(),
+              child: _buildActivityItem(
+                icon: Icons.whatshot,
+                iconColor: Colors.red,
+                title: lead['name'] ?? 'Unknown Lead',
+                subtitle: '${lead['college'] ?? ''} - ${lead['course'] ?? ''}',
+                time: _formatTime(lead['createdAt']),
+                statusColor: Colors.red,
+              ),
             ),
           )
           .toList(),

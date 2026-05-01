@@ -145,6 +145,15 @@ class DashboardProvider extends ChangeNotifier {
     }).toList();
   }
 
+  // Get hot leads
+  List<Map<String, dynamic>> get hotLeads {
+    return _recentEnquiries.where((enquiry) {
+      final status = enquiry['status']?.toString().toLowerCase() ?? '';
+      final label = enquiry['label']?.toString().toLowerCase() ?? '';
+      return enquiry['isHot'] == true || status.contains('hot') || label.contains('hot') || status == 'interested';
+    }).toList();
+  }
+
   @override
   void dispose() {
     _enquiriesSubscription?.cancel();

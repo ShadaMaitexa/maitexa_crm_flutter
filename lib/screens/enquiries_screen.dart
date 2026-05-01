@@ -111,7 +111,7 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
                   children: [
                     _buildFilterChip('All', 'all'),
                     const SizedBox(width: AppSizes.paddingS),
-                    _buildFilterChip('Hot 🔥', 'hot'),
+                    _buildFilterChip('Hot', 'hot'),
                     const SizedBox(width: AppSizes.paddingS),
                     _buildFilterChip('New', 'new'),
                     const SizedBox(width: AppSizes.paddingS),
@@ -268,6 +268,8 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
     final source = enquiry['source'] ?? 'source';
     final status = enquiry['status'] ?? 'new';
     final notes = enquiry['notes'] ?? 'No notes';
+    final label = enquiry['label']?.toString().toLowerCase() ?? '';
+    final isHot = enquiry['isHot'] == true || status.toString().toLowerCase().contains('hot') || label.contains('hot') || status.toString().toLowerCase() == 'interested';
     final createdAt = enquiry['createdAt'] as Timestamp?;
 
     DateTime? date;
@@ -311,13 +313,23 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            name,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        if (isHot) ...[
+                          const SizedBox(width: AppSizes.paddingXS),
+                          const Icon(Icons.local_fire_department, color: Colors.orange, size: 20),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: AppSizes.paddingXS),
                     Text(

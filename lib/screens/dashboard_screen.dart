@@ -780,7 +780,7 @@ class _DashboardContentState extends State<DashboardContent>
                           children: [
                             ResponsiveHelper.responsiveTextBuilder(
                               context: context,
-                              text: 'Hot Leads 🔥',
+                              text: 'Hot Leads',
                               style: const TextStyle(
                                 color: AppColors.textPrimary,
                                 fontSize: 20,

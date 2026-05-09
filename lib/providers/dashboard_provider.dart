@@ -150,7 +150,13 @@ class DashboardProvider extends ChangeNotifier {
     return _recentEnquiries.where((enquiry) {
       final status = enquiry['status']?.toString().toLowerCase() ?? '';
       final label = enquiry['label']?.toString().toLowerCase() ?? '';
-      return enquiry['isHot'] == true || status.contains('hot') || label.contains('hot') || status == 'interested';
+      return enquiry['isHot'] == true || 
+             enquiry['isHot']?.toString().toLowerCase() == 'true' ||
+             enquiry['is_hot'] == true ||
+             enquiry['is_hot']?.toString().toLowerCase() == 'true' ||
+             status.contains('hot') || 
+             label.contains('hot') || 
+             status.contains('interested');
     }).toList();
   }
 

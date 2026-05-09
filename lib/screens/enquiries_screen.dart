@@ -210,14 +210,32 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
     return docs.where((doc) {
       final data = doc.data() as Map<String, dynamic>;
       
+      final status = data['status']?.toString().toLowerCase() ?? '';
+      final label = data['label']?.toString().toLowerCase() ?? '';
+      final isHot = data['isHot'] == true || 
+                    data['isHot']?.toString().toLowerCase() == 'true' ||
+                    data['is_hot'] == true ||
+                    data['is_hot']?.toString().toLowerCase() == 'true' ||
+                    status.contains('hot') || 
+                    label.contains('hot') || 
+                    status.contains('interested');
+
       // Status filter
-      if (_statusFilter == 'hot') {
-        final status = data['status']?.toString().toLowerCase() ?? '';
-        final label = data['label']?.toString().toLowerCase() ?? '';
-        final isHot = data['isHot'] == true || status.contains('hot') || label.contains('hot') || status == 'interested';
+      if (_statusFilter == 'hot' || _statusFilter == 'hotdeals' || _statusFilter == 'hot deals') {
         if (!isHot) return false;
-      } else if (_statusFilter != 'all' && data['status']?.toString().toLowerCase() != _statusFilter.toLowerCase()) {
-        return false;
+      } else if (_statusFilter != 'all') {
+        final filterStr = _statusFilter.toLowerCase();
+        bool matches = false;
+        
+        if (filterStr == 'new' && status.contains('new')) {
+          matches = true;
+        } else if (filterStr == 'not_interested' && (status == 'not_interested' || status == 'not interested')) {
+          matches = true;
+        } else if (status == filterStr || status.replaceAll('_', ' ') == filterStr.replaceAll('_', ' ')) {
+          matches = true;
+        }
+        
+        if (!matches) return false;
       }
 
       // Search filter
@@ -233,7 +251,9 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
             phone.contains(query) ||
             email.contains(query) ||
             college.contains(query) ||
-            course.contains(query);
+            course.contains(query) ||
+            label.contains(query) ||
+            status.contains(query);
       }
 
       return true;
@@ -266,10 +286,16 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
     final college = enquiry['college'] ?? 'College';
     final course = enquiry['course'] ?? 'Course';
     final source = enquiry['source'] ?? 'source';
-    final status = enquiry['status'] ?? 'new';
+    final status = enquiry['status']?.toString().toLowerCase() ?? 'new';
     final notes = enquiry['notes'] ?? 'No notes';
     final label = enquiry['label']?.toString().toLowerCase() ?? '';
-    final isHot = enquiry['isHot'] == true || status.toString().toLowerCase().contains('hot') || label.contains('hot') || status.toString().toLowerCase() == 'interested';
+    final isHot = enquiry['isHot'] == true || 
+                  enquiry['isHot']?.toString().toLowerCase() == 'true' ||
+                  enquiry['is_hot'] == true ||
+                  enquiry['is_hot']?.toString().toLowerCase() == 'true' ||
+                  status.contains('hot') || 
+                  label.contains('hot') || 
+                  status.contains('interested');
     final createdAt = enquiry['createdAt'] as Timestamp?;
 
     DateTime? date;

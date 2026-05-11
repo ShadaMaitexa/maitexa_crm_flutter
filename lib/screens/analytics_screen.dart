@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import '../constants/app_constants.dart';
-import '../providers/dashboard_provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/firebase_service.dart';
 
@@ -51,6 +51,49 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     }
   }
 
+  Future<void> _sendPosters() async {
+    final ImagePicker picker = ImagePicker();
+    final List<XFile> images = await picker.pickMultiImage();
+    
+    if (images.isEmpty) return;
+
+    setState(() => _isLoading = true);
+    try {
+      // Use the exact string "Hot Lead" as seen in the Firebase screenshot
+      List<String> numbers = await FirebaseService.getNumbersByCategory('Hot Lead');
+      
+      if (numbers.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No numbers found with the "Hot Lead" label. Please check your call logs or leads.'),
+              backgroundColor: AppColors.warning,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Open share sheet with the images
+      await Share.shareXFiles(
+        images, 
+        text: 'Hello! Please check out our latest posters and updates.',
+      );
+      
+    } catch (e) {
+      debugPrint('Error sending posters: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final stats = _isLoading ? <String, dynamic>{} : _analyticsData;
@@ -77,14 +120,33 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    IconButton(
-                      onPressed: () {
-                        _loadAnalyticsData();
-                      },
-                      icon: const Icon(
-                        Icons.refresh,
-                        color: AppColors.textSecondary,
-                      ),
+                    Row(
+                      children: [
+                        // New Send Posters Button
+                        TextButton.icon(
+                          onPressed: _isLoading ? null : _sendPosters,
+                          icon: const Icon(Icons.send_rounded, size: 18),
+                          label: const Text('Send Posters'),
+                          style: TextButton.styleFrom(
+                            backgroundColor: const Color(0xFF25D366).withOpacity(0.1),
+                            foregroundColor: const Color(0xFF25D366),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: () {
+                            _loadAnalyticsData();
+                          },
+                          icon: const Icon(
+                            Icons.refresh,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

@@ -1231,6 +1231,65 @@ class FirebaseService {
     }
   }
 
+  static Future<List<String>> getNumbersByCategory(String category) async {
+    final Set<String> numbers = {};
+    try {
+      // 1. Check number_categories collection (legacy/specific mapping)
+      final catSnap = await _firestore
+          .collection(numberCategoriesCollection)
+          .where('category', isEqualTo: category)
+          .get();
+      for (var doc in catSnap.docs) {
+        numbers.add(doc.id);
+      }
+
+      // 2. Check 'calls' collection for the label (matches screenshot)
+      // We look for the exact string from screenshot: "Hot Lead"
+      final String searchLabel = category.toLowerCase().contains('hot') ? 'Hot Lead' : category;
+      
+      final callsSnap = await _firestore
+          .collection(callsCollection)
+          .where('label', isEqualTo: searchLabel)
+          .get();
+      for (var doc in callsSnap.docs) {
+        final data = doc.data();
+        if (data['phone_number'] != null) {
+          numbers.add(data['phone_number'].toString());
+        } else if (data['notes'] != null && data['notes'] is List && (data['notes'] as List).isNotEmpty) {
+          // Fallback to notes[0].phone as seen in some records
+          final firstNote = (data['notes'] as List)[0];
+          if (firstNote is Map && firstNote['phone'] != null) {
+            numbers.add(firstNote['phone'].toString());
+          }
+        }
+      }
+
+      // 3. Check 'enquiries' collection
+      final enquiriesSnap = await _firestore
+          .collection(enquiriesCollection)
+          .where('label', isEqualTo: searchLabel)
+          .get();
+      for (var doc in enquiriesSnap.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data['phone'] != null) numbers.add(data['phone'].toString());
+      }
+
+      // 4. Check 'leads' collection
+      final leadsSnap = await _firestore
+          .collection(leadsCollection)
+          .where('label', isEqualTo: searchLabel)
+          .get();
+      for (var doc in leadsSnap.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data['phone'] != null) numbers.add(data['phone'].toString());
+      }
+
+    } catch (e) {
+      debugPrint('Get numbers by category error: $e');
+    }
+    return numbers.toList();
+  }
+
   // Lead Management
   static Stream<QuerySnapshot> getLeadsStream() {
     return _firestore

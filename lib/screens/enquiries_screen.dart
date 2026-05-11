@@ -219,8 +219,6 @@ class _EnquiriesScreenState extends State<EnquiriesScreen> {
                     status.contains('hot') || 
                     label.contains('hot') || 
                     status.contains('interested');
-
-      // Status filter
       if (_statusFilter == 'hot' || _statusFilter == 'hotdeals' || _statusFilter == 'hot deals') {
         if (!isHot) return false;
       } else if (_statusFilter != 'all') {
